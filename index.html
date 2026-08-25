@@ -390,11 +390,10 @@
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- PolylineDecorator JS -->
-  <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.1.0/dist/leaflet.polylineDecorator.min.js"></script>
+  <!-- PolylineDecorator JS (Versión bundleada con L.Symbol) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-polylinedecorator/1.6.0/leaflet.polylineDecorator.min.js"></script>
 
   <script>
-    // State & Storage
     let map;
     let userLocationMarker = null;
     let userCoords = null;
@@ -421,7 +420,6 @@
       }
     }
 
-    // Init Map
     function initMap() {
       loadSavedState();
 
@@ -442,12 +440,8 @@
       setupEventListeners();
     }
 
-    // Geolocation
     function initGeolocation() {
-      if (!('geolocation' in navigator)) {
-        alert('Geolocalización no soportada por el navegador.');
-        return;
-      }
+      if (!('geolocation' in navigator)) return;
 
       const updatePos = (pos) => {
         const { latitude, longitude } = pos.coords;
@@ -468,11 +462,7 @@
         }
       };
 
-      const errorPos = (err) => {
-        console.warn('Error obteniendo ubicación:', err.message);
-      };
-
-      navigator.geolocation.watchPosition(updatePos, errorPos, {
+      navigator.geolocation.watchPosition(updatePos, (err) => console.warn(err.message), {
         enableHighAccuracy: true,
         maximumAge: 3000,
         timeout: 10000
@@ -485,9 +475,7 @@
         (pos) => {
           const { latitude, longitude } = pos.coords;
           userCoords = [latitude, longitude];
-          if (userLocationMarker) {
-            userLocationMarker.setLatLng(userCoords);
-          }
+          if (userLocationMarker) userLocationMarker.setLatLng(userCoords);
           map.panTo(userCoords);
         },
         (err) => alert('No se pudo refrescar la posición: ' + err.message),
@@ -495,7 +483,6 @@
       );
     }
 
-    // Overpass API Query
     async function scanCurrentArea() {
       const scanBtn = document.getElementById('scan-btn');
       scanBtn.disabled = true;
@@ -519,7 +506,6 @@
       }
     }
 
-    // Process & Render OSM Elements
     function renderOSMData(data) {
       roadsLayerGroup.clearLayers();
       junctionsLayerGroup.clearLayers();
@@ -543,7 +529,7 @@
         }
       });
 
-      // 1. Draw Roads
+      // Pintar vías
       ways.forEach(way => {
         const latlngs = way.nodes.map(nid => nodesMap[nid]).filter(Boolean);
         if (latlngs.length < 2) return;
@@ -566,25 +552,28 @@
             lineJoin: 'round'
           }).addTo(roadsLayerGroup);
 
-          L.polylineDecorator(polyline, {
-            patterns: [
-              {
-                offset: 25,
-                repeat: 60,
-                symbol: L.Symbol.arrowHead({
-                  pixelSize: 18,
-                  headAngle: 45,
-                  polygon: false,
-                  pathOptions: {
-                    stroke: true,
-                    weight: 4,
-                    color: '#ffffff',
-                    opacity: 1
-                  }
-                })
-              }
-            ]
-          }).addTo(roadsLayerGroup);
+          // Decorador de flechas con fallback de seguridad
+          if (L.polylineDecorator && L.Symbol && L.Symbol.arrowHead) {
+            L.polylineDecorator(polyline, {
+              patterns: [
+                {
+                  offset: 25,
+                  repeat: 60,
+                  symbol: L.Symbol.arrowHead({
+                    pixelSize: 18,
+                    headAngle: 45,
+                    polygon: false,
+                    pathOptions: {
+                      stroke: true,
+                      weight: 4,
+                      color: '#ffffff',
+                      opacity: 1
+                    }
+                  })
+                }
+              ]
+            }).addTo(roadsLayerGroup);
+          }
         } else {
           L.polyline(drawCoordinates, {
             color: '#8a2be2',
@@ -595,7 +584,7 @@
         }
       });
 
-      // 2. Identify Intersections
+      // Identificar cruces
       let junctionSeq = 1;
       const junctionNodes = Object.keys(nodeUsageCount).filter(nid => nodeUsageCount[nid] >= 2);
 
@@ -649,7 +638,6 @@
       el.className = `junction-marker-icon ${completed ? 'completed' : 'pending'}`;
     }
 
-    // Bottom Sheet Management
     function openBottomSheet(juncObj) {
       const sheet = document.getElementById('bottom-sheet');
       const titleText = document.getElementById('sheet-title-text');
@@ -705,7 +693,6 @@
         maneuversContainer.appendChild(legCard);
       });
 
-      // Handle Checkbox Changes
       maneuversContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
         cb.addEventListener('change', (e) => {
           const jId = e.target.getAttribute('data-junc-id');
