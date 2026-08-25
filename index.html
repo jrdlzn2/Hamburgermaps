@@ -100,9 +100,21 @@
       border-radius: 3px;
     }
     .dot-box {
-      width: 8px;
-      height: 8px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
+    }
+
+    /* Estilo para los números dentro de los puntos en el mapa */
+    .junction-marker-label {
+      background: transparent;
+      border: none;
+      font-size: 10px;
+      font-weight: bold;
+      color: white;
+      text-align: center;
+      line-height: 22px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
     }
 
     /* Modal emergente inferior (Bottom Sheet) */
@@ -188,11 +200,11 @@
     <div class="legend">
       <div class="legend-item">
         <div class="color-box" style="background: #007bff;"></div>
-        <span>1 Sentido (Azul)</span>
+        <span>1 Sentido</span>
       </div>
       <div class="legend-item">
         <div class="color-box" style="background: #8a2be2;"></div>
-        <span>2 Sentidos (Morado)</span>
+        <span>2 Sentidos</span>
       </div>
       <div class="legend-item">
         <div class="dot-box" style="background: #ff5722;"></div>
@@ -244,7 +256,6 @@
       const bounds = map.getBounds();
       const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
 
-      // Usamos out geom; para obtener las geometrías y etiquetas directamente en la respuesta
       const query = `
         [out:json][timeout:25];
         (
@@ -272,26 +283,21 @@
       roadsLayer.clearLayers();
       markersLayer.clearLayers();
 
-      const nodeUsage = {};
       const nodesMap = {};
 
       data.elements.forEach(way => {
         if (!way.geometry) return;
 
-        // Extraer coordenadas de la geometría de la vía
         const latlngs = way.geometry.map(pt => [pt.lat, pt.lon]);
 
-        // Registrar uso de nodos para calcular intersecciones (cruces)
         way.geometry.forEach(pt => {
-          // Usamos una clave de lat/lon redondeada para contar cruces exactos de nodos compartidos
           const nKey = `${pt.lat.toFixed(5)},${pt.lon.toFixed(5)}`;
           if (!nodesMap[nKey]) {
-            nodesMap[nKey] = { lat: pt.lat, lon: pt.lon, count: 0, id: pt.id || Math.random() };
+            nodesMap[nKey] = { lat: pt.lat, lon: pt.lon, count: 0 };
           }
           nodesMap[nKey].count++;
         });
 
-        // Comprobar si es de un solo sentido
         const tags = way.tags || {};
         const isOneWay = (
           tags.oneway === 'yes' || 
@@ -300,7 +306,6 @@
           tags.junction === 'roundabout'
         );
 
-        // Dibujar la calle: Azul si es 1 sentido, Morado si es 2 sentidos
         L.polyline(latlngs, {
           color: isOneWay ? '#007bff' : '#8a2be2',
           weight: 5,
@@ -309,19 +314,18 @@
         }).addTo(roadsLayer);
       });
 
-      // Filtrar y pintar los cruces (nodos por donde pasan 2 o más calles)
       let count = 0;
       Object.values(nodesMap).forEach(node => {
         if (node.count >= 2) {
           count++;
-          createJunctionMarker(node, node.count);
+          createJunctionMarker(node, node.count, count);
         }
       });
 
       document.getElementById('stats').innerText = `Cruces: ${count}`;
     }
 
-    function createJunctionMarker(node, branchesCount) {
+    function createJunctionMarker(node, branchesCount, indexNum) {
       const jId = `j_${node.lat.toFixed(5)}_${node.lon.toFixed(5)}`;
       
       if (!junctionsData[jId]) {
@@ -340,22 +344,41 @@
       }
 
       const isCompleted = junctionsData[jId].maneuvers.length > 0 && junctionsData[jId].maneuvers.every(m => m.done);
+      const fillColor = isCompleted ? "#16a34a" : "#ff5722";
 
-      const marker = L.circleMarker([node.lat, node.lon], {
-        radius: 7,
-        fillColor: isCompleted ? "#16a34a" : "#ff5722",
-        color: "#ffffff",
-        weight: 2,
-        fillOpacity: 0.95
+      // Creamos un marcador con icono HTML personalizado para mostrar el número dentro del círculo
+      const customIcon = L.divIcon({
+        className: 'junction-marker-container',
+        html: `<div style="
+          width: 26px; 
+          height: 26px; 
+          background-color: ${fillColor}; 
+          border: 2px solid white; 
+          border-radius: 50%; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          color: white; 
+          font-weight: bold; 
+          font-size: 11px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          margin-top: -13px;
+          margin-left: -13px;
+        ">${indexNum}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
       });
 
-      marker.on('click', () => openJunctionSheet(jId, marker));
+      const marker = L.marker([node.lat, node.lon], { icon: customIcon });
+
+      marker.on('click', () => openJunctionSheet(jId, marker, indexNum));
       markersLayer.addLayer(marker);
     }
 
-    function openJunctionSheet(jId, markerRef) {
+    function openJunctionSheet(jId, markerRef, indexNum) {
       const junction = junctionsData[jId];
-      document.getElementById('sheetTitle').innerText = `Cruce (${junction.lat.toFixed(4)}, ${junction.lon.toFixed(4)})`;
+      document.getElementById('sheetTitle').innerText = `Cruce #${indexNum}`;
+      document.getElementById('sheetSubtitle').innerText = `Coordenadas: ${junction.lat.toFixed(4)}, ${junction.lon.toFixed(4)}`;
       
       const listContainer = document.getElementById('maneuversList');
       listContainer.innerHTML = '';
@@ -373,7 +396,30 @@
           localStorage.setItem('saved_junctions', JSON.stringify(junctionsData));
           
           const allDone = junction.maneuvers.every(m => m.done);
-          markerRef.setStyle({ fillColor: allDone ? "#16a34a" : "#ff5722" });
+          const newColor = allDone ? "#16a34a" : "#ff5722";
+
+          // Actualizar el color del icono en tiempo real al marcar los checkboxes
+          markerRef.setIcon(L.divIcon({
+            className: 'junction-marker-container',
+            html: `<div style="
+              width: 26px; 
+              height: 26px; 
+              background-color: ${newColor}; 
+              border: 2px solid white; 
+              border-radius: 50%; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center; 
+              color: white; 
+              font-weight: bold; 
+              font-size: 11px;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+              margin-top: -13px;
+              margin-left: -13px;
+            ">${indexNum}</div>`,
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
+          }));
         });
 
         listContainer.appendChild(item);
