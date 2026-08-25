@@ -82,7 +82,7 @@
     /* Leyenda */
     .legend {
       display: flex;
-      gap: 16px;
+      gap: 14px;
       font-size: 11px;
       font-weight: 600;
       color: #475569;
@@ -92,7 +92,7 @@
     .legend-item {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
     }
     .color-box {
       width: 14px;
@@ -128,7 +128,6 @@
       align-items: center;
       justify-content: center;
       color: #0f172a;
-      transition: background 0.2s;
     }
     .gps-btn:active {
       background: #f1f5f9;
@@ -217,7 +216,7 @@
     <div class="legend">
       <div class="legend-item">
         <div class="color-box" style="background: #007bff;"></div>
-        <span>1 Sentido</span>
+        <span>1 Sentido ➔</span>
       </div>
       <div class="legend-item">
         <div class="color-box" style="background: #8a2be2;"></div>
@@ -234,7 +233,7 @@
     </div>
   </div>
 
-  <!-- Botones flotantes de posicionamiento GPS -->
+  <!-- Botones flotantes de GPS -->
   <div class="gps-controls">
     <button class="gps-btn" onclick="centerOnUser()" title="Centrar en mi ubicación">🎯</button>
     <button class="gps-btn" onclick="refreshLocation()" title="Refrescar ubicación">🔄</button>
@@ -254,6 +253,9 @@
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet PolylineDecorator JS para pintar las flechas -->
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.1.0/dist/leaflet.polylineDecorator.min.js"></script>
+  
   <script>
     const map = L.map('map', { zoomControl: false }).setView([40.4168, -3.7038], 16);
     
@@ -271,26 +273,18 @@
     let userLat = null;
     let userLon = null;
 
-    // Inicializar geolocalización continua
     function initGPS() {
-      if (!navigator.geolocation) {
-        alert("Tu navegador no soporta geolocalización.");
-        return;
-      }
-
+      if (!navigator.geolocation) return;
       navigator.geolocation.watchPosition(
         (position) => {
           userLat = position.coords.latitude;
           userLon = position.coords.longitude;
           updateUserMarker(userLat, userLon);
         },
-        (error) => {
-          console.warn("Error obteniendo GPS: ", error.message);
-        },
+        (error) => { console.warn("GPS error: ", error.message); },
         { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
       );
 
-      // Centrar al arrancar por primera vez
       navigator.geolocation.getCurrentPosition((position) => {
         userLat = position.coords.latitude;
         userLon = position.coords.longitude;
@@ -301,24 +295,12 @@
 
     function updateUserMarker(lat, lon) {
       userLayer.clearLayers();
-
-      // Icono personalizado para la posición actual (Punto azul con halo)
       const userIcon = L.divIcon({
         className: 'user-position-icon',
-        html: `<div style="
-          width: 20px;
-          height: 20px;
-          background: #3b82f6;
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 0 10px rgba(59, 130, 246, 0.7);
-          margin-top: -10px;
-          margin-left: -10px;
-        "></div>`,
+        html: `<div style="width: 20px; height: 20px; background: #3b82f6; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(59, 130, 246, 0.7); margin-top: -10px; margin-left: -10px;"></div>`,
         iconSize: [20, 20],
         iconAnchor: [10, 10]
       });
-
       L.marker([lat, lon], { icon: userIcon, zIndexOffset: 1000 }).addTo(userLayer);
     }
 
@@ -326,7 +308,7 @@
       if (userLat !== null && userLon !== null) {
         map.setView([userLat, userLon], 17, { animate: true });
       } else {
-        alert("Buscando señal GPS... Espera un momento.");
+        alert("Buscando señal GPS...");
         initGPS();
       }
     }
@@ -339,14 +321,11 @@
           map.setView([userLat, userLon], 17, { animate: true });
           updateUserMarker(userLat, userLon);
         },
-        (error) => {
-          alert("No se pudo actualizar la ubicación. Comprueba el GPS de tu móvil.");
-        },
+        () => { alert("No se pudo actualizar la ubicación."); },
         { enableHighAccuracy: true, timeout: 10000 }
       );
     }
 
-    // Arrancar GPS al cargar
     initGPS();
 
     document.getElementById('fetchBtn').addEventListener('click', fetchJunctionsAndRoads);
@@ -375,7 +354,7 @@
         const data = await response.json();
         processOverpassData(data);
       } catch (err) {
-        alert("Error al conectar con OpenStreetMap. Reduce el área visible e inténtalo de nuevo.");
+        alert("Error al conectar con OpenStreetMap. Reduce el área visible.");
       } finally {
         btn.disabled = false;
         btn.innerText = "Escanear zona actual";
@@ -409,12 +388,36 @@
           tags.junction === 'roundabout'
         );
 
-        L.polyline(latlngs, {
+        // Si oneway es -1, invertimos la dirección de los nodos para que la flecha pinte bien el sentido real
+        let lineCoords = latlngs;
+        if (tags.oneway === '-1') {
+          lineCoords = [...latlngs].reverse();
+        }
+
+        // Dibujar la línea de la calle
+        const polyline = L.polyline(lineCoords, {
           color: isOneWay ? '#007bff' : '#8a2be2',
           weight: 5,
           opacity: 0.85,
           lineJoin: 'round'
         }).addTo(roadsLayer);
+
+        // Si es de un solo sentido, añadimos flechas decorativas sobre la propia línea
+        if (isOneWay) {
+          L.polylineDecorator(polyline, {
+            patterns: [
+              {
+                offset: '25px',
+                repeat: '70px',
+                symbol: L.Symbol.arrowHead({
+                  pixelSize: 10,
+                  polygon: false,
+                  pathOptions: { stroke: true, color: '#ffffff', weight: 2, opacity: 0.9 }
+                })
+              }
+            ]
+          }).addTo(roadsLayer);
+        }
       });
 
       let count = 0;
@@ -451,22 +454,7 @@
 
       const customIcon = L.divIcon({
         className: 'junction-marker-container',
-        html: `<div style="
-          width: 26px; 
-          height: 26px; 
-          background-color: ${fillColor}; 
-          border: 2px solid white; 
-          border-radius: 50%; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center; 
-          color: white; 
-          font-weight: bold; 
-          font-size: 11px;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-          margin-top: -13px;
-          margin-left: -13px;
-        ">${indexNum}</div>`,
+        html: `<div style="width: 26px; height: 26px; background-color: ${fillColor}; border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); margin-top: -13px; margin-left: -13px;">${indexNum}</div>`,
         iconSize: [26, 26],
         iconAnchor: [13, 13]
       });
@@ -502,22 +490,7 @@
 
           markerRef.setIcon(L.divIcon({
             className: 'junction-marker-container',
-            html: `<div style="
-              width: 26px; 
-              height: 26px; 
-              background-color: ${newColor}; 
-              border: 2px solid white; 
-              border-radius: 50%; 
-              display: flex; 
-              align-items: center; 
-              justify-content: center; 
-              color: white; 
-              font-weight: bold; 
-              font-size: 11px;
-              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-              margin-top: -13px;
-              margin-left: -13px;
-            ">${indexNum}</div>`,
+            html: `<div style="width: 26px; height: 26px; background-color: ${newColor}; border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); margin-top: -13px; margin-left: -13px;">${indexNum}</div>`,
             iconSize: [26, 26],
             iconAnchor: [13, 13]
           }));
