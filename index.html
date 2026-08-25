@@ -3,46 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Gestor de Cruces y Maniobras</title>
+  <title>Gestor de Cruces y Sentidos</title>
   
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    #map { flex: 1; width: 100%; z-index: 1; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      background: #f8f9fa;
+    }
+    #map {
+      flex: 1;
+      width: 100%;
+      z-index: 1;
+    }
     
-    /* Panel de control superior */
+    /* Panel superior de control */
     .top-bar {
       position: absolute;
       top: 10px;
       left: 10px;
       right: 10px;
       z-index: 1000;
-      background: white;
-      padding: 10px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      padding: 10px 14px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .top-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
     .btn {
-      background: #007bff;
+      background: #0f172a;
       color: white;
       border: none;
-      padding: 8px 14px;
-      border-radius: 6px;
-      font-weight: bold;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-weight: 600;
       font-size: 13px;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
     }
-    .btn:disabled { background: #ccc; }
-    .status-badge { font-size: 12px; color: #444; font-weight: 500; }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .btn:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+    .status-badge {
+      font-size: 12px;
+      color: #334155;
+      font-weight: 600;
+      background: #f1f5f9;
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
 
-    /* Modal / Bottom Sheet para gestionar el cruce */
+    /* Leyenda */
+    .legend {
+      display: flex;
+      gap: 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 6px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .color-box {
+      width: 14px;
+      height: 5px;
+      border-radius: 3px;
+    }
+    .dot-box {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Modal emergente inferior (Bottom Sheet) */
     .sheet {
       position: absolute;
       bottom: 0;
@@ -50,76 +114,144 @@
       right: 0;
       background: white;
       z-index: 1000;
-      border-radius: 16px 16px 0 0;
-      padding: 18px;
-      box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+      border-radius: 18px 18px 0 0;
+      padding: 16px 20px 24px;
+      box-shadow: 0 -6px 24px rgba(0,0,0,0.18);
       transform: translateY(105%);
-      transition: transform 0.3s ease-out;
-      max-height: 50vh;
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      max-height: 55vh;
       overflow-y: auto;
     }
-    .sheet.active { transform: translateY(0); }
-    .sheet h3 { font-size: 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-    .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
+    .sheet.active {
+      transform: translateY(0);
+    }
+    .sheet-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .sheet h3 {
+      font-size: 16px;
+      color: #0f172a;
+      font-weight: 700;
+    }
+    .close-btn {
+      background: #f1f5f9;
+      border: none;
+      font-size: 16px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #64748b;
+    }
+    .sheet-subtitle {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 12px;
+    }
     
-    /* Lista de giros */
+    /* Lista interactiva de giros */
     .maneuver-item {
       display: flex;
       align-items: center;
-      padding: 10px 0;
-      border-bottom: 1px solid #eee;
+      padding: 11px 8px;
+      border-bottom: 1px solid #f1f5f9;
       gap: 12px;
+      border-radius: 6px;
     }
-    .maneuver-item input[type="checkbox"] { width: 20px; height: 20px; accent-color: #28a745; }
-    .maneuver-label { font-size: 14px; color: #333; }
+    .maneuver-item:active {
+      background: #f8fafc;
+    }
+    .maneuver-item input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      accent-color: #16a34a;
+      cursor: pointer;
+    }
+    .maneuver-label {
+      font-size: 14px;
+      color: #1e293b;
+      font-weight: 500;
+      flex: 1;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
 
   <div class="top-bar">
-    <button id="fetchBtn" class="btn">Escanear cruces en vista</button>
-    <span id="stats" class="status-badge">Cruces: 0</span>
+    <div class="top-row">
+      <button id="fetchBtn" class="btn">Escanear zona actual</button>
+      <span id="stats" class="status-badge">Cruces: 0</span>
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="color-box" style="background: #007bff;"></div>
+        <span>1 Sentido</span>
+      </div>
+      <div class="legend-item">
+        <div class="color-box" style="background: #8a2be2;"></div>
+        <span>2 Sentidos</span>
+      </div>
+      <div class="legend-item">
+        <div class="dot-box" style="background: #ff5722;"></div>
+        <span>Pendiente</span>
+      </div>
+      <div class="legend-item">
+        <div class="dot-box" style="background: #16a34a;"></div>
+        <span>Listo</span>
+      </div>
+    </div>
   </div>
 
   <div id="map"></div>
 
-  <!-- Panel flotante del cruce seleccionado -->
+  <!-- Panel emergente del cruce -->
   <div id="sheet" class="sheet">
-    <h3>
-      <span id="sheetTitle">Cruce #0</span>
+    <div class="sheet-header">
+      <h3 id="sheetTitle">Cruce</h3>
       <button class="close-btn" onclick="closeSheet()">✕</button>
-    </h3>
-    <p style="font-size: 12px; color: #666; margin-bottom: 12px;" id="sheetSubtitle">Selecciona los giros completados:</p>
+    </div>
+    <p class="sheet-subtitle" id="sheetSubtitle">Marca las trayectorias completadas:</p>
     <div id="maneuversList"></div>
   </div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // Inicializar mapa centrado
-    const map = L.map('map').setView([40.4168, -3.7038], 16); // Madrid por defecto
+    // Inicialización del mapa en posición por defecto
+    const map = L.map('map', { zoomControl: false }).setView([40.4168, -3.7038], 16);
+    
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // Intentar geolocalizar al usuario
+    // Intentar ubicar automáticamente por GPS móvil
     map.locate({ setView: true, maxZoom: 16 });
 
     let junctionsData = JSON.parse(localStorage.getItem('saved_junctions') || '{}');
-    let markersLayer = L.layerGroup().addTo(map);
+    
+    // Capas separadas
+    const roadsLayer = L.layerGroup().addTo(map);
+    const markersLayer = L.layerGroup().addTo(map);
 
-    document.getElementById('fetchBtn').addEventListener('click', fetchJunctions);
+    document.getElementById('fetchBtn').addEventListener('click', fetchJunctionsAndRoads);
 
-    async function fetchJunctions() {
+    async function fetchJunctionsAndRoads() {
       const btn = document.getElementById('fetchBtn');
       btn.disabled = true;
-      btn.innerText = "Cargando...";
+      btn.innerText = "Descargando...";
 
       const bounds = map.getBounds();
       const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
 
-      // Consulta a Overpass API para vías transitables
+      // Vías transitables con sus nodos
       const query = `
         [out:json][timeout:25];
         (
@@ -138,15 +270,17 @@
         const data = await response.json();
         processOverpassData(data);
       } catch (err) {
-        alert("Error al obtener datos de OpenStreetMap. Reduce el zoom o reintenta.");
+        alert("Error al obtener datos de OpenStreetMap. Reduce el área visible e inténtalo de nuevo.");
       } finally {
         btn.disabled = false;
-        btn.innerText = "Escanear cruces en vista";
+        btn.innerText = "Escanear zona actual";
       }
     }
 
     function processOverpassData(data) {
+      roadsLayer.clearLayers();
       markersLayer.clearLayers();
+
       const nodeUsage = {};
       const nodesMap = {};
       const ways = [];
@@ -162,7 +296,30 @@
         }
       });
 
-      // Filtrar nodos que cruzan 2 o más calles (intersecciones)
+      // 1. Dibujar calles coloreadas por sentido de circulación
+      ways.forEach(way => {
+        const latlngs = way.nodes
+          .map(nid => nodesMap[nid] ? [nodesMap[nid].lat, nodesMap[nid].lon] : null)
+          .filter(coord => coord !== null);
+
+        if (latlngs.length > 1) {
+          const isOneWay = way.tags && (
+            way.tags.oneway === 'yes' || 
+            way.tags.oneway === '1' || 
+            way.tags.oneway === '-1' || 
+            way.tags.junction === 'roundabout'
+          );
+
+          L.polyline(latlngs, {
+            color: isOneWay ? '#007bff' : '#8a2be2',
+            weight: 4,
+            opacity: 0.75,
+            lineJoin: 'round'
+          }).addTo(roadsLayer);
+        }
+      });
+
+      // 2. Extraer intersecciones (nodos compartidos por 2 o más vías)
       let count = 0;
       Object.keys(nodeUsage).forEach(nodeId => {
         if (nodeUsage[nodeId] >= 2 && nodesMap[nodeId]) {
@@ -177,13 +334,14 @@
 
     function createJunctionMarker(node, branchesCount) {
       const jId = `j_${node.id}`;
+      
+      // Si el cruce no está guardado previamente en LocalStorage, inicializar giros
       if (!junctionsData[jId]) {
-        // Estimación estándar de giros según las ramas de la intersección
         const estimatedTurns = [];
         for (let i = 1; i <= branchesCount; i++) {
-          estimatedTurns.push(`Entrada vía ${i} → Giro Derecha`);
+          estimatedTurns.push(`Entrada vía ${i} → Derecha`);
           estimatedTurns.push(`Entrada vía ${i} → Recto`);
-          estimatedTurns.push(`Entrada vía ${i} → Giro Izquierda`);
+          estimatedTurns.push(`Entrada vía ${i} → Izquierda`);
         }
         junctionsData[jId] = {
           id: jId,
@@ -193,14 +351,14 @@
         };
       }
 
-      const isCompleted = junctionsData[jId].maneuvers.every(m => m.done);
+      const isCompleted = junctionsData[jId].maneuvers.length > 0 && junctionsData[jId].maneuvers.every(m => m.done);
 
       const marker = L.circleMarker([node.lat, node.lon], {
-        radius: 8,
-        fillColor: isCompleted ? "#28a745" : "#ff5722",
-        color: "#fff",
+        radius: 7,
+        fillColor: isCompleted ? "#16a34a" : "#ff5722",
+        color: "#ffffff",
         weight: 2,
-        fillOpacity: 0.9
+        fillOpacity: 0.95
       });
 
       marker.on('click', () => openJunctionSheet(jId, marker));
@@ -227,7 +385,7 @@
           localStorage.setItem('saved_junctions', JSON.stringify(junctionsData));
           
           const allDone = junction.maneuvers.every(m => m.done);
-          markerRef.setStyle({ fillColor: allDone ? "#28a745" : "#ff5722" });
+          markerRef.setStyle({ fillColor: allDone ? "#16a34a" : "#ff5722" });
         });
 
         listContainer.appendChild(item);
