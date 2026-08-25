@@ -253,7 +253,7 @@
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Leaflet PolylineDecorator JS para pintar las flechas -->
+  <!-- Leaflet PolylineDecorator JS -->
   <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.1.0/dist/leaflet.polylineDecorator.min.js"></script>
   
   <script>
@@ -388,7 +388,6 @@
           tags.junction === 'roundabout'
         );
 
-        // Si oneway es -1, invertimos la dirección de los nodos para que la flecha pinte bien el sentido real
         let lineCoords = latlngs;
         if (tags.oneway === '-1') {
           lineCoords = [...latlngs].reverse();
@@ -397,22 +396,22 @@
         // Dibujar la línea de la calle
         const polyline = L.polyline(lineCoords, {
           color: isOneWay ? '#007bff' : '#8a2be2',
-          weight: 5,
-          opacity: 0.85,
+          weight: 6,
+          opacity: 0.9,
           lineJoin: 'round'
         }).addTo(roadsLayer);
 
-        // Si es de un solo sentido, añadimos flechas decorativas sobre la propia línea
+        // Flechas blancas grandes y muy visibles para sentido único
         if (isOneWay) {
           L.polylineDecorator(polyline, {
             patterns: [
               {
-                offset: '25px',
-                repeat: '70px',
+                offset: '30px',
+                repeat: '90px',
                 symbol: L.Symbol.arrowHead({
-                  pixelSize: 10,
+                  pixelSize: 18, // Tamaño aumentado para ver de lejos
                   polygon: false,
-                  pathOptions: { stroke: true, color: '#ffffff', weight: 2, opacity: 0.9 }
+                  pathOptions: { stroke: true, color: '#ffffff', weight: 4, opacity: 1 }
                 })
               }
             ]
