@@ -210,7 +210,7 @@
 
   <div class="top-bar">
     <div class="top-row">
-      <button id="fetchBtn" class="btn">Escanear zona actual</button>
+      <button id="fetchBtn" class="btn">Escanear zona amplia</button>
       <span id="stats" class="status-badge">Cruces: 0</span>
     </div>
     <div class="legend">
@@ -333,32 +333,26 @@
     async function fetchJunctionsAndRoads() {
       const btn = document.getElementById('fetchBtn');
       btn.disabled = true;
-      btn.innerText = "Descargando...";
+      btn.innerText = "Analizando zona...";
 
       const bounds = map.getBounds();
-      
-      // Control de seguridad: Si el zoom está demasiado alejado, restringimos o avisamos
-      if (map.getZoom() < 15) {
-        alert("El mapa está muy alejado. Por favor, haz zoom más cerca de la zona que quieres escanear.");
-        btn.disabled = false;
-        btn.innerText = "Escanear zona actual";
-        return;
-      }
-
       const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
 
+      // Consulta Overpass optimizada mediante nodos y cuerpos (soporta áreas más amplias sin errores)
       const query = `
-        [out:json][timeout:15];
+        [out:json][timeout:25];
         (
           way["highway"~"^(primary|secondary|tertiary|residential|unclassified|living_street)$"](${bbox});
         );
-        out geom;
+        out body;
+        >;
+        out skel qt;
       `;
 
-      // Probamos con el servidor principal y un servidor alternativo de respaldo si falla
       const endpoints = [
         'https://overpass-api.de/api/interpreter',
-        'https://overpass.private.coffee/api/interpreter'
+        'https://overpass.private.coffee/api/interpreter',
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
       ];
 
       let success = false;
@@ -376,41 +370,54 @@
           success = true;
           break;
         } catch (err) {
-          console.warn("Fallo en endpoint, probando siguiente...", err);
+          console.warn("Intentando siguiente servidor espejo...", err);
         }
       }
 
       if (!success) {
-        alert("Los servidores de mapas están ocupados. Por favor, haz un zoom más cercano a la manzana o espera unos segundos e inténtalo de nuevo.");
+        alert("No se pudieron cargar los datos en este momento. Comprueba tu conexión a internet.");
       }
 
       btn.disabled = false;
-      btn.innerText = "Escanear zona actual";
+      btn.innerText = "Escanear zona amplia";
     }
 
     function processOverpassData(data) {
       roadsLayer.clearLayers();
       markersLayer.clearLayers();
 
-      const nodesMap = {};
-
       if (!data.elements || data.elements.length === 0) {
-        alert("No se han encontrado calles en esta vista concreta. Prueba a moverte a otra calle o haz un poco de zoom.");
+        alert("No se han encontrado calles en esta zona. Prueba a mover el mapa.");
         document.getElementById('stats').innerText = `Cruces: 0`;
         return;
       }
 
-      data.elements.forEach(way => {
-        if (!way.geometry) return;
+      const nodesMap = {};
+      const ways = [];
 
-        const latlngs = way.geometry.map(pt => [pt.lat, pt.lon]);
+      data.elements.forEach(el => {
+        if (el.type === 'node') {
+          nodesMap[el.id] = { lat: el.lat, lon: el.lon };
+        } else if (el.type === 'way') {
+          ways.push(el);
+        }
+      });
 
-        way.geometry.forEach(pt => {
-          const nKey = `${pt.lat.toFixed(5)},${pt.lon.toFixed(5)}`;
-          if (!nodesMap[nKey]) {
-            nodesMap[nKey] = { lat: pt.lat, lon: pt.lon, count: 0 };
-          }
-          nodesMap[nKey].count++;
+      const nodeUsage = {};
+
+      // 1. Dibujar todas las calles y calcular uso de nodos para intersecciones
+      ways.forEach(way => {
+        if (!way.nodes || way.nodes.length < 2) return;
+
+        const latlngs = way.nodes
+          .map(nid => nodesMap[nid] ? [nodesMap[nid].lat, nodesMap[nid].lon] : null)
+          .filter(coord => coord !== null);
+
+        if (latlngs.length < 2) return;
+
+        // Registrar nodos para cruces
+        way.nodes.forEach(nid => {
+          nodeUsage[nid] = (nodeUsage[nid] || 0) + 1;
         });
 
         const tags = way.tags || {};
@@ -426,6 +433,7 @@
           lineCoords = [...latlngs].reverse();
         }
 
+        // Pintar la calle (Azul = 1 sentido, Morado = 2 sentidos)
         const polyline = L.polyline(lineCoords, {
           color: isOneWay ? '#007bff' : '#8a2be2',
           weight: 6,
@@ -433,6 +441,7 @@
           lineJoin: 'round'
         }).addTo(roadsLayer);
 
+        // Añadir flechas grandes blancas si es de un solo sentido
         if (isOneWay) {
           L.polylineDecorator(polyline, {
             patterns: [
@@ -450,11 +459,12 @@
         }
       });
 
+      // 2. Identificar y marcar los cruces (nodos compartidos por 2 o más vías)
       let count = 0;
-      Object.values(nodesMap).forEach(node => {
-        if (node.count >= 2) {
+      Object.keys(nodeUsage).forEach(nid => {
+        if (nodeUsage[nid] >= 2 && nodesMap[nid]) {
           count++;
-          createJunctionMarker(node, node.count, count);
+          createJunctionMarker(nodesMap[nid], nodeUsage[nid], count);
         }
       });
 
