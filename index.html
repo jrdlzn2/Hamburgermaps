@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Navegador de Cruces</title>
+  <title>Navegador de Vías y Cruces</title>
   
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   
@@ -21,7 +21,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background-color: #121212;
+      background-color: #0d1117;
       color: #ffffff;
     }
 
@@ -37,6 +37,7 @@
       width: 100%;
       height: 100%;
       z-index: 1;
+      background-color: #0d1117;
     }
 
     /* HUD Superior */
@@ -53,13 +54,13 @@
     }
 
     .card {
-      background: rgba(20, 24, 33, 0.88);
+      background: rgba(15, 20, 28, 0.92);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 18px;
       padding: 12px 16px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
       pointer-events: auto;
       flex: 1;
       margin-right: 10px;
@@ -77,15 +78,15 @@
       gap: 8px;
       font-size: 0.85rem;
       font-weight: 600;
-      color: #00e676;
+      color: #00ff66;
     }
 
     .pulse-dot {
       width: 10px;
       height: 10px;
-      background-color: #00e676;
+      background-color: #00ff66;
       border-radius: 50%;
-      box-shadow: 0 0 10px #00e676;
+      box-shadow: 0 0 10px #00ff66;
       animation: pulse 1.8s infinite;
     }
 
@@ -100,7 +101,7 @@
       gap: 16px;
       margin-top: 6px;
       font-size: 0.8rem;
-      color: #a0aec0;
+      color: #8b949e;
     }
 
     .metric span {
@@ -108,18 +109,17 @@
       font-weight: 700;
     }
 
-    /* Botón flotante superior derecho para cruces aceptados */
     .btn-saved-list {
-      background: rgba(20, 24, 33, 0.9);
+      background: rgba(15, 20, 28, 0.92);
       backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       color: #ffffff;
       padding: 10px 14px;
       border-radius: 14px;
       font-size: 0.8rem;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
       pointer-events: auto;
       display: none;
       align-items: center;
@@ -135,33 +135,33 @@
       transform: scale(0.95);
     }
 
-    /* Marcadores en el mapa */
+    /* Marcadores y Redondas del Cruce */
     .user-marker {
-      width: 24px;
-      height: 24px;
-      background: #007aff;
+      width: 26px;
+      height: 26px;
+      background: #2f81f7;
       border: 3px solid #ffffff;
       border-radius: 50%;
-      box-shadow: 0 0 14px rgba(0, 122, 255, 0.9);
+      box-shadow: 0 0 16px rgba(47, 129, 247, 0.9);
       position: relative;
     }
 
     .user-heading-pointer {
       position: absolute;
-      top: -12px;
+      top: -13px;
       left: 50%;
       transform: translateX(-50%);
       width: 0;
       height: 0;
       border-left: 6px solid transparent;
       border-right: 6px solid transparent;
-      border-bottom: 12px solid #007aff;
+      border-bottom: 13px solid #2f81f7;
     }
 
     .crossing-badge {
-      width: 42px;
-      height: 42px;
-      background: linear-gradient(135deg, #ff3b30, #ff9500);
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #f85149, #d29922);
       color: white;
       border-radius: 50%;
       border: 3px solid white;
@@ -170,13 +170,13 @@
       justify-content: center;
       font-weight: 800;
       font-size: 1.2rem;
-      box-shadow: 0 4px 18px rgba(255, 59, 48, 0.6);
+      box-shadow: 0 4px 18px rgba(248, 81, 73, 0.7);
       animation: bounce 2s infinite ease-in-out;
     }
 
     .crossing-badge.saved {
-      background: linear-gradient(135deg, #007aff, #00c6ff);
-      box-shadow: 0 4px 14px rgba(0, 122, 255, 0.5);
+      background: linear-gradient(135deg, #2f81f7, #3fb950);
+      box-shadow: 0 4px 14px rgba(47, 129, 247, 0.6);
       animation: none;
     }
 
@@ -185,30 +185,30 @@
       50% { transform: translateY(-6px); }
     }
 
-    /* Panel inferior (Bottom Sheet) No Intrusivo */
+    /* Panel inferior (Bottom Sheet) */
     .bottom-sheet {
       position: absolute;
       bottom: 0;
       left: 0;
       right: 0;
       z-index: 1000;
-      background: rgba(18, 22, 30, 0.94);
+      background: rgba(13, 17, 23, 0.95);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
       border-top-left-radius: 28px;
       border-top-right-radius: 28px;
       padding: 16px 18px calc(16px + env(safe-area-inset-bottom, 12px));
       display: flex;
       flex-direction: column;
       gap: 14px;
-      box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.6);
     }
 
     .sheet-handle {
       width: 40px;
       height: 4px;
-      background: rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.3);
       border-radius: 2px;
       margin: 0 auto;
     }
@@ -222,16 +222,15 @@
     .sheet-title {
       font-size: 1.05rem;
       font-weight: 700;
-      color: #f7fafc;
+      color: #f0f6fc;
     }
 
     .crossing-distance {
       font-size: 0.85rem;
-      color: #ff9500;
+      color: #d29922;
       font-weight: 600;
     }
 
-    /* Botones de acción general */
     .actions-row {
       display: flex;
       gap: 10px;
@@ -253,16 +252,16 @@
     }
 
     .btn-accept {
-      background: #00e676;
-      color: #0b2e13;
+      background: #238636;
+      color: #ffffff;
     }
 
     .btn-reject {
       background: rgba(255, 255, 255, 0.1);
-      color: #e2e8f0;
+      color: #c9d1d9;
     }
 
-    /* Cuadrícula de opciones de giro */
+    /* Opciones de giro */
     .turn-options-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -270,15 +269,15 @@
     }
 
     .turn-btn {
-      background: #252c3b;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: #21262d;
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 16px;
       padding: 12px 6px;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 8px;
-      color: #cbd5e0;
+      color: #c9d1d9;
       cursor: pointer;
       transition: all 0.2s ease;
     }
@@ -287,12 +286,11 @@
       transform: scale(0.94);
     }
 
-    /* Estado seleccionado en verde */
     .turn-btn.selected {
-      background: #00c853 !important;
-      border-color: #69f0ae !important;
+      background: #238636 !important;
+      border-color: #56d364 !important;
       color: #ffffff !important;
-      box-shadow: 0 0 12px rgba(0, 200, 83, 0.4);
+      box-shadow: 0 0 12px rgba(35, 134, 54, 0.6);
     }
 
     .turn-btn svg {
@@ -309,7 +307,7 @@
 
     .turn-btn .exit-street {
       font-size: 0.62rem;
-      color: #a0aec0;
+      color: #8b949e;
       max-width: 100%;
       white-space: nowrap;
       overflow: hidden;
@@ -317,13 +315,13 @@
     }
 
     .turn-btn.selected .exit-street {
-      color: #e8f5e9;
+      color: #d1d5db;
     }
 
     .empty-state {
       text-align: center;
       padding: 12px 0;
-      color: #718096;
+      color: #8b949e;
       font-size: 0.88rem;
     }
   </style>
@@ -338,7 +336,7 @@
             <div class="pulse-dot"></div>
             <span id="gps-status">Rastreando GPS</span>
           </div>
-          <span id="heading-display" style="font-weight: 700; font-size: 0.85rem; color: #38bdf8;">0° N</span>
+          <span id="heading-display" style="font-weight: 700; font-size: 0.85rem; color: #58a6ff;">0° N</span>
         </div>
         <div class="metrics-bar">
           <div class="metric">Velocidad: <span id="speed-val">0 km/h</span></div>
@@ -346,16 +344,15 @@
         </div>
       </div>
       
-      <!-- Botón Superior Derecho (Visible si hay cruces aceptados) -->
       <button class="btn-saved-list" id="btn-saved-modal" onclick="showSavedCrossingsList()">
-        📍 Ver Guardados
+        📍 Guardados
       </button>
     </div>
 
     <!-- Mapa -->
     <div id="map"></div>
 
-    <!-- Panel Inferior (Bottom Sheet) -->
+    <!-- Panel Inferior -->
     <div class="bottom-sheet">
       <div class="sheet-handle"></div>
       <div class="sheet-title-row">
@@ -364,7 +361,7 @@
       </div>
 
       <div id="bottom-content-area">
-        <div class="empty-state" id="sheet-message">Desplazándote hacia la siguiente intersección</div>
+        <div class="empty-state" id="sheet-message">Analizando calles y sentido de vías...</div>
       </div>
     </div>
   </div>
@@ -377,9 +374,10 @@
     let currentHeading = 0;
     let crossingSequence = 1;
     let pendingCrossing = null;
-    let currentSelectedOption = null; // Almacena la opción marcada en verde actual
+    let currentSelectedOption = null;
 
     const savedMapMarkers = {};
+    const crossingApproachLinesGroup = L.layerGroup(); // Capa para los 20m de vías concurrentes
 
     function initMap() {
       map = L.map('map', {
@@ -387,9 +385,13 @@
         attributionControl: false
       }).setView([currentCoords.lat, currentCoords.lng], 18);
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19
+      // Usamos CartoDB Dark Matter modificado para potenciar nombres de calles y contraste de vías
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd'
       }).addTo(map);
+
+      crossingApproachLinesGroup.addTo(map);
 
       const userIcon = L.divIcon({
         className: 'user-icon-container',
@@ -398,8 +400,8 @@
             <div class="user-heading-pointer"></div>
           </div>
         `,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
       });
 
       userMarker = L.marker([currentCoords.lat, currentCoords.lng], { icon: userIcon }).addTo(map);
@@ -418,7 +420,27 @@
       };
     }
 
-    // Detectar un nuevo cruce y mostrar opciones de Aceptar/Rechazar en la parte baja
+    // Dibuja los primeros 20 metros de las vías que coinciden en el cruce (4 direcciones principales)
+    function renderApproachingStreets(crossingLat, crossingLng) {
+      crossingApproachLinesGroup.clearLayers();
+
+      const angles = [0, 90, 180, 270]; // Representan los accesos cardinales/perpendiculares del cruce
+      angles.forEach(angle => {
+        // Punto de inicio (centro del cruce) y punto final a 20 metros de distancia
+        const endPoint = computeOffset(crossingLat, crossingLng, 20, angle);
+
+        // Línea resaltada con neón fluorescente contrastado para las vías
+        const streetLine = L.polyline([[crossingLat, crossingLng], [endPoint.lat, endPoint.lng]], {
+          color: '#3fb950', // Color verde neón brillante de alta visibilidad para vías
+          weight: 6,
+          opacity: 0.9,
+          lineCap: 'round'
+        });
+
+        crossingApproachLinesGroup.addLayer(streetLine);
+      });
+    }
+
     function triggerNewCrossingDetection() {
       const crossingPos = computeOffset(currentCoords.lat, currentCoords.lng, 90, currentHeading);
       const crossingId = `crossing_${crossingSequence}`;
@@ -433,36 +455,36 @@
         distance: 90,
         options: [
           { id: 'u-turn', label: 'Cambio sent.', street: 'Retorno', svg: '<path d="M9 7v6a5 5 0 0 0 10 0V3h-2v10a3 3 0 0 1-6 0V7h3l-4-5-4 5h3z"/>' },
-          { id: 'left', label: 'Giro Izq.', street: 'C/ Mayor', svg: '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>' },
+          { id: 'left', label: 'Giro Izq.', street: 'C/ Mayor (Única)', svg: '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>' },
           { id: 'straight', label: 'Recto', street: 'Av. Central', svg: '<path d="M12 4l-6 6h4v10h4V10h4z"/>' },
           { id: 'right', label: 'Giro Dcha.', street: 'C/ Sol', svg: '<path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>' }
         ]
       };
 
-      // Si ya está guardado en sesión, lo mostramos directamente listo para usar
+      // Pintar los accesos de 20 metros de las vías en el cruce detectado
+      renderApproachingStreets(pendingCrossing.lat, pendingCrossing.lng);
+
       if (cached) {
         displayTurnOptions(cached);
         return;
       }
 
-      // Marcador temporal en el mapa (visible sin bloquear nada)
       const tempIcon = L.divIcon({
         className: 'crossing-icon-wrapper',
         html: `<div class="crossing-badge">${pendingCrossing.num}</div>`,
-        iconSize: [42, 42],
-        iconAnchor: [21, 21]
+        iconSize: [44, 44],
+        iconAnchor: [22, 22]
       });
 
       if (activeCrossingMarker) map.removeLayer(activeCrossingMarker);
       activeCrossingMarker = L.marker([pendingCrossing.lat, pendingCrossing.lng], { icon: tempIcon }).addTo(map);
 
-      // Mostrar barra inferior de Aceptar / Rechazar
       document.getElementById('sheet-title-text').innerText = `¿Aceptar Cruce #${pendingCrossing.num}?`;
       document.getElementById('crossing-distance-label').innerText = `a ${pendingCrossing.distance}m`;
 
       const contentArea = document.getElementById('bottom-content-area');
       contentArea.innerHTML = `
-        <div style="font-size:0.85rem; color:#a0aec0; margin-bottom:12px;">Se ha detectado una nueva intersección en tu trayectoria.</div>
+        <div style="font-size:0.85rem; color:#8b949e; margin-bottom:12px;">Nueva intersección detectada con flujos de vía identificados.</div>
         <div class="actions-row">
           <button class="btn btn-reject" onclick="rejectCrossing()">Rechazar</button>
           <button class="btn btn-accept" onclick="acceptCrossing()">Aceptar Cruce</button>
@@ -470,7 +492,6 @@
       `;
     }
 
-    // ACEPTAR CRUCE
     window.acceptCrossing = function() {
       if (!pendingCrossing) return;
 
@@ -485,40 +506,38 @@
       displayTurnOptions(pendingCrossing);
     };
 
-    // RECHAZAR CRUCE
     window.rejectCrossing = function() {
       if (activeCrossingMarker) {
         map.removeLayer(activeCrossingMarker);
         activeCrossingMarker = null;
       }
+      crossingApproachLinesGroup.clearLayers();
       pendingCrossing = null;
       document.getElementById('sheet-title-text').innerText = 'Cruce omitido';
       document.getElementById('crossing-distance-label').innerText = '--';
       document.getElementById('bottom-content-area').innerHTML = `
-        <div class="empty-state">Continuando trayectoria...</div>
+        <div class="empty-state">Continuando en ruta...</div>
       `;
     };
 
-    // Crear marcador fijo persistente
     function createPermanentMarker(data) {
       if (savedMapMarkers[data.id]) return;
 
       const savedIcon = L.divIcon({
         className: 'crossing-saved-wrapper',
         html: `<div class="crossing-badge saved">${data.num}</div>`,
-        iconSize: [42, 42],
-        iconAnchor: [21, 21]
+        iconSize: [44, 44],
+        iconAnchor: [22, 22]
       });
 
       const marker = L.marker([data.lat, data.lng], { icon: savedIcon }).addTo(map);
-      marker.bindPopup(`<b>Cruce #${data.num}</b><br>Guardado en sesión.`);
+      marker.bindPopup(`<b>Cruce #${data.num}</b><br>Vías guardadas correctamente.`);
       savedMapMarkers[data.id] = marker;
       updateSavedCount();
     }
 
-    // Mostrar opciones de giro tras aceptar
     function displayTurnOptions(data) {
-      document.getElementById('sheet-title-text').innerText = `Opciones en Cruce #${data.num}`;
+      document.getElementById('sheet-title-text').innerText = `Vías en Cruce #${data.num}`;
       document.getElementById('crossing-distance-label').innerText = `a ${data.distance}m`;
 
       const container = document.getElementById('bottom-content-area');
@@ -536,43 +555,37 @@
       `;
     }
 
-    // Manejar clic en una indicación (Verde y confirmación de desmarcar)
     window.handleOptionClick = function(crossingId, optId, label, street) {
       if (navigator.vibrate) navigator.vibrate(40);
 
       if (currentSelectedOption === optId) {
-        // Si ya estaba seleccionada, preguntar si desea desmarcarla
         if (confirm(`¿Estás seguro de que quieres desmarcar esta indicación (${label} - ${street})?`)) {
           currentSelectedOption = null;
           let cached = getFromSessionCache(crossingId);
           if (cached) displayTurnOptions(cached);
         }
       } else {
-        // Seleccionar en verde
         currentSelectedOption = optId;
         let cached = getFromSessionCache(crossingId);
         if (cached) displayTurnOptions(cached);
 
-        // Opcional: Avanzar al siguiente tramo tras seleccionar opción de ruta
         setTimeout(() => {
           crossingSequence++;
           currentCoords = computeOffset(currentCoords.lat, currentCoords.lng, 100, currentHeading);
           userMarker.setLatLng([currentCoords.lat, currentCoords.lng]);
           map.panTo([currentCoords.lat, currentCoords.lng]);
-          currentSelectedOption = null; // Reiniciar selección para el siguiente cruce
+          currentSelectedOption = null;
           triggerNewCrossingDetection();
         }, 1200);
       }
     };
 
-    // Ver lista de todos los cruces guardados (al pulsar el botón superior derecho)
     window.showSavedCrossingsList = function() {
       let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
-      let listStr = Object.values(stored).map(c => `• Cruce #${c.num} (Lat: ${c.lat.toFixed(4)}, Lng: ${c.lng.toFixed(4)})`).join('\n');
-      alert(`Cruces guardados en la sesión actual:\n\n${listStr || 'Ninguno'}`);
+      let listStr = Object.values(stored).map(c => `• Cruce #${c.num} (${c.options.length} vías asociadas)`).join('\n');
+      alert(`Cruces y vías memorizadas en la sesión:\n\n${listStr || 'Ninguno'}`);
     };
 
-    // --- Persistencia SessionStorage ---
     function saveToSessionCache(key, data) {
       let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
       stored[key] = data;
@@ -606,7 +619,6 @@
       }
     }
 
-    // GPS y Sensores de Orientación
     function updateHeadingUI(deg) {
       currentHeading = Math.round(deg);
       const cardinal = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'][Math.round(currentHeading / 45) % 8];
