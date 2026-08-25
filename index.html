@@ -1,520 +1,743 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Gestor de Cruces y Sentidos</title>
-  
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Auditoría Vial Urbana</title>
+
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
   <style>
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      -webkit-tap-highlight-color: transparent;
     }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
       overflow: hidden;
-      background: #f8f9fa;
+      height: 100vh;
+      width: 100vw;
     }
-    #map {
-      flex: 1;
+
+    #app-container {
+      position: relative;
       width: 100%;
+      height: 100%;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
       z-index: 1;
     }
-    
-    /* Panel superior de control */
-    .top-bar {
+
+    /* Top Control Bar */
+    .top-panel {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      right: 10px;
+      top: 12px;
+      left: 12px;
+      right: 12px;
       z-index: 1000;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(8px);
-      padding: 10px 14px;
-      border-radius: 12px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
       display: flex;
       flex-direction: column;
       gap: 8px;
     }
-    .top-row {
+
+    .top-actions {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-    }
-    .btn {
-      background: #0f172a;
-      color: white;
-      border: none;
-      padding: 9px 14px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 13px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .btn:active {
-      transform: scale(0.98);
-    }
-    .btn:disabled {
-      background: #94a3b8;
-      cursor: not-allowed;
-    }
-    .status-badge {
-      font-size: 12px;
-      color: #334155;
-      font-weight: 600;
-      background: #f1f5f9;
-      padding: 6px 10px;
-      border-radius: 6px;
+      gap: 8px;
     }
 
-    /* Leyenda */
-    .legend {
-      display: flex;
-      gap: 14px;
-      font-size: 11px;
+    .btn-scan {
+      flex: 1;
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
       font-weight: 600;
-      color: #475569;
-      border-top: 1px solid #e2e8f0;
-      padding-top: 6px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
     }
+
+    .btn-scan:active {
+      transform: scale(0.97);
+      background: #1d4ed8;
+    }
+
+    .btn-scan:disabled {
+      background: #475569;
+      cursor: not-allowed;
+    }
+
+    .badge-counter {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 0 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+      white-space: nowrap;
+    }
+
+    .badge-counter span {
+      color: #38bdf8;
+      margin-left: 4px;
+    }
+
+    /* Visual Legend */
+    .legend-bar {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 8px 12px;
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+
     .legend-item {
       display: flex;
       align-items: center;
       gap: 5px;
     }
-    .color-box {
-      width: 14px;
-      height: 5px;
+
+    .legend-indicator {
+      width: 12px;
+      height: 6px;
       border-radius: 3px;
     }
-    .dot-box {
-      width: 10px;
-      height: 10px;
+
+    .indicator-circle {
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
     }
 
-    /* Controles flotantes de GPS (Derecha) */
-    .gps-controls {
+    /* Floating Action Buttons */
+    .fab-container {
       position: absolute;
-      right: 15px;
-      bottom: 90px;
+      right: 16px;
+      bottom: 24px;
       z-index: 1000;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
     }
-    .gps-btn {
-      width: 44px;
-      height: 44px;
-      background: white;
-      border: none;
+
+    .btn-fab {
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      font-size: 20px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+      font-size: 18px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #0f172a;
-    }
-    .gps-btn:active {
-      background: #f8fafc;
+      transition: all 0.2s ease;
     }
 
-    /* Modal emergente inferior (Bottom Sheet) */
-    .sheet {
+    .btn-fab:active {
+      transform: scale(0.92);
+      background: #334155;
+    }
+
+    /* Bottom Sheet */
+    .bottom-sheet {
       position: absolute;
       bottom: 0;
       left: 0;
       right: 0;
-      background: white;
-      z-index: 1000;
-      border-radius: 18px 18px 0 0;
-      padding: 16px 20px 24px;
-      box-shadow: 0 -6px 24px rgba(0,0,0,0.18);
+      max-height: 80vh;
+      background: #1e293b;
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
+      z-index: 1500;
       transform: translateY(105%);
-      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      max-height: 55vh;
-      overflow-y: auto;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
-    .sheet.active {
+
+    .bottom-sheet.open {
       transform: translateY(0);
     }
-    .sheet-header {
+
+    .sheet-handle-area {
+      width: 100%;
+      padding: 10px 0 6px 0;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 4px;
-    }
-    .sheet h3 {
-      font-size: 16px;
-      color: #0f172a;
-      font-weight: 700;
-    }
-    .close-btn {
-      background: #f1f5f9;
-      border: none;
-      font-size: 16px;
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
       justify-content: center;
-      color: #64748b;
+      cursor: grab;
     }
-    .sheet-subtitle {
-      font-size: 12px;
-      color: #64748b;
-      margin-bottom: 12px;
+
+    .sheet-handle {
+      width: 36px;
+      height: 4px;
+      border-radius: 2px;
+      background: #64748b;
     }
-    
-    /* Lista interactiva de giros */
-    .maneuver-item {
+
+    .sheet-header {
+      padding: 6px 20px 14px;
       display: flex;
       align-items: center;
-      padding: 11px 8px;
-      border-bottom: 1px solid #f1f5f9;
-      gap: 12px;
-      border-radius: 6px;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
-    .maneuver-item input[type="checkbox"] {
+
+    .sheet-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sheet-badge {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: #ff5722;
+      color: #fff;
+    }
+
+    .sheet-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 20px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+
+    .sheet-content {
+      padding: 16px 20px;
+      overflow-y: auto;
+      max-height: calc(80vh - 80px);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .leg-card {
+      background: #0f172a;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 12px 14px;
+    }
+
+    .leg-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #38bdf8;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .turn-options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .turn-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+      color: #e2e8f0;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .turn-label input[type="checkbox"] {
       width: 22px;
       height: 22px;
       accent-color: #16a34a;
+      border-radius: 6px;
       cursor: pointer;
     }
-    .maneuver-label {
-      font-size: 14px;
-      color: #1e293b;
-      font-weight: 500;
-      flex: 1;
-      cursor: pointer;
+
+    /* Markers */
+    .user-pos-marker {
+      width: 16px;
+      height: 16px;
+      background-color: #007bff;
+      border: 3px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(0, 123, 255, 0.8), 0 0 20px rgba(0, 123, 255, 0.5);
+      animation: pulse-ring 2s infinite;
+    }
+
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(0, 123, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); }
+    }
+
+    .junction-marker-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: #ffffff;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .junction-marker-icon.pending {
+      background-color: #ff5722;
+    }
+
+    .junction-marker-icon.completed {
+      background-color: #16a34a;
     }
   </style>
 </head>
 <body>
-
-  <div class="top-bar">
-    <div class="top-row">
-      <button id="fetchBtn" class="btn">Escanear zona actual</button>
-      <span id="stats" class="status-badge">Cruces: 0</span>
+  <div id="app-container">
+    <div class="top-panel">
+      <div class="top-actions">
+        <button id="scan-btn" class="btn-scan">
+          <span>📡</span> Escanear zona actual
+        </button>
+        <div class="badge-counter">Cruces: <span id="junctions-count">0</span></div>
+      </div>
+      <div class="legend-bar">
+        <div class="legend-item">
+          <div class="legend-indicator" style="background:#007bff;"></div>
+          <span>1 Sentido</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-indicator" style="background:#8a2be2;"></div>
+          <span>2 Sentidos</span>
+        </div>
+        <div class="legend-item">
+          <div class="indicator-circle" style="background:#ff5722;"></div>
+          <span>Pendiente</span>
+        </div>
+        <div class="legend-item">
+          <div class="indicator-circle" style="background:#16a34a;"></div>
+          <span>Listo</span>
+        </div>
+      </div>
     </div>
-    <div class="legend">
-      <div class="legend-item">
-        <div class="color-box" style="background: #007bff;"></div>
-        <span>1 Sentido ➔</span>
-      </div>
-      <div class="legend-item">
-        <div class="color-box" style="background: #8a2be2;"></div>
-        <span>2 Sentidos</span>
-      </div>
-      <div class="legend-item">
-        <div class="dot-box" style="background: #ff5722;"></div>
-        <span>Pendiente</span>
-      </div>
-      <div class="legend-item">
-        <div class="dot-box" style="background: #16a34a;"></div>
-        <span>Listo</span>
-      </div>
+
+    <div id="map"></div>
+
+    <div class="fab-container">
+      <button id="btn-refresh-gps" class="btn-fab" title="Forzar lectura GPS">🔄</button>
+      <button id="btn-center-gps" class="btn-fab" title="Recentrar posición">🎯</button>
     </div>
-  </div>
 
-  <!-- Botones flotantes de GPS -->
-  <div class="gps-controls">
-    <button class="gps-btn" onclick="centerOnUser()" title="Centrar en mi ubicación">🎯</button>
-    <button class="gps-btn" onclick="refreshLocation()" title="Refrescar ubicación">🔄</button>
-  </div>
-
-  <div id="map"></div>
-
-  <!-- Panel emergente del cruce -->
-  <div id="sheet" class="sheet">
-    <div class="sheet-header">
-      <h3 id="sheetTitle">Cruce</h3>
-      <button class="close-btn" onclick="closeSheet()">✕</button>
+    <!-- Bottom Sheet -->
+    <div id="bottom-sheet" class="bottom-sheet">
+      <div class="sheet-handle-area" id="sheet-handle">
+        <div class="sheet-handle"></div>
+      </div>
+      <div class="sheet-header">
+        <div class="sheet-title">
+          <span id="sheet-title-text">Cruce #0</span>
+          <span id="sheet-status-badge" class="sheet-badge">Pendiente</span>
+        </div>
+        <button class="sheet-close" id="btn-close-sheet">&times;</button>
+      </div>
+      <div class="sheet-content" id="sheet-maneuvers"></div>
     </div>
-    <p class="sheet-subtitle" id="sheetSubtitle">Marca las trayectorias completadas:</p>
-    <div id="maneuversList"></div>
   </div>
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Leaflet PolylineDecorator JS -->
+  <!-- PolylineDecorator JS -->
   <script src="https://cdn.jsdelivr.net/npm/leaflet-polylinedecorator@1.1.0/dist/leaflet.polylineDecorator.min.js"></script>
-  
+
   <script>
-    const map = L.map('map', { zoomControl: false }).setView([40.4168, -3.7038], 16);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap'
-    }).addTo(map);
+    // State & Storage
+    let map;
+    let userLocationMarker = null;
+    let userCoords = null;
+    let roadsLayerGroup;
+    let junctionsLayerGroup;
+    let junctionsData = [];
+    let savedJunctions = {};
 
-    let junctionsData = JSON.parse(localStorage.getItem('saved_junctions') || '{}');
-    
-    const roadsLayer = L.layerGroup().addTo(map);
-    const markersLayer = L.layerGroup().addTo(map);
-    const userLayer = L.layerGroup().addTo(map);
-
-    let userLat = null;
-    let userLon = null;
-
-    function initGPS() {
-      if (!navigator.geolocation) return;
-      navigator.geolocation.watchPosition(
-        (position) => {
-          userLat = position.coords.latitude;
-          userLon = position.coords.longitude;
-          updateUserMarker(userLat, userLon);
-        },
-        (error) => { console.warn("GPS error: ", error.message); },
-        { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
-      );
-
-      navigator.geolocation.getCurrentPosition((position) => {
-        userLat = position.coords.latitude;
-        userLon = position.coords.longitude;
-        map.setView([userLat, userLon], 16);
-        updateUserMarker(userLat, userLon);
-      });
-    }
-
-    function updateUserMarker(lat, lon) {
-      userLayer.clearLayers();
-      const userIcon = L.divIcon({
-        className: 'user-position-icon',
-        html: `<div style="width: 20px; height: 20px; background: #3b82f6; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(59, 130, 246, 0.7); margin-top: -10px; margin-left: -10px;"></div>`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
-      });
-      L.marker([lat, lon], { icon: userIcon, zIndexOffset: 1000 }).addTo(userLayer);
-    }
-
-    function centerOnUser() {
-      if (userLat !== null && userLon !== null) {
-        map.setView([userLat, userLon], 17, { animate: true });
-      } else {
-        alert("Buscando señal GPS...");
-        initGPS();
+    function loadSavedState() {
+      try {
+        const data = localStorage.getItem('saved_junctions');
+        savedJunctions = data ? JSON.parse(data) : {};
+      } catch (e) {
+        console.error('Error cargando localStorage', e);
+        savedJunctions = {};
       }
     }
 
-    function refreshLocation() {
+    function saveState() {
+      try {
+        localStorage.setItem('saved_junctions', JSON.stringify(savedJunctions));
+      } catch (e) {
+        console.error('Error guardando en localStorage', e);
+      }
+    }
+
+    // Init Map
+    function initMap() {
+      loadSavedState();
+
+      map = L.map('map', {
+        zoomControl: false,
+        attributionControl: false
+      }).setView([40.4168, -3.7038], 16);
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd'
+      }).addTo(map);
+
+      roadsLayerGroup = L.layerGroup().addTo(map);
+      junctionsLayerGroup = L.layerGroup().addTo(map);
+
+      initGeolocation();
+      setupEventListeners();
+    }
+
+    // Geolocation
+    function initGeolocation() {
+      if (!('geolocation' in navigator)) {
+        alert('Geolocalización no soportada por el navegador.');
+        return;
+      }
+
+      const updatePos = (pos) => {
+        const { latitude, longitude } = pos.coords;
+        userCoords = [latitude, longitude];
+
+        const userIcon = L.divIcon({
+          className: 'user-pos-container',
+          html: '<div class="user-pos-marker"></div>',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
+        });
+
+        if (!userLocationMarker) {
+          userLocationMarker = L.marker(userCoords, { icon: userIcon, zIndexOffset: 1000 }).addTo(map);
+          map.setView(userCoords, 17);
+        } else {
+          userLocationMarker.setLatLng(userCoords);
+        }
+      };
+
+      const errorPos = (err) => {
+        console.warn('Error obteniendo ubicación:', err.message);
+      };
+
+      navigator.geolocation.watchPosition(updatePos, errorPos, {
+        enableHighAccuracy: true,
+        maximumAge: 3000,
+        timeout: 10000
+      });
+    }
+
+    function forceGPS() {
+      if (!('geolocation' in navigator)) return;
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          userLat = position.coords.latitude;
-          userLon = position.coords.longitude;
-          map.setView([userLat, userLon], 17, { animate: true });
-          updateUserMarker(userLat, userLon);
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          userCoords = [latitude, longitude];
+          if (userLocationMarker) {
+            userLocationMarker.setLatLng(userCoords);
+          }
+          map.panTo(userCoords);
         },
-        () => { alert("No se pudo actualizar la ubicación."); },
-        { enableHighAccuracy: true, timeout: 10000 }
+        (err) => alert('No se pudo refrescar la posición: ' + err.message),
+        { enableHighAccuracy: true, timeout: 5000 }
       );
     }
 
-    initGPS();
-
-    document.getElementById('fetchBtn').addEventListener('click', fetchJunctionsAndRoads);
-
-    async function fetchJunctionsAndRoads() {
-      const btn = document.getElementById('fetchBtn');
-      btn.disabled = true;
-      btn.innerText = "Descargando...";
+    // Overpass API Query
+    async function scanCurrentArea() {
+      const scanBtn = document.getElementById('scan-btn');
+      scanBtn.disabled = true;
+      scanBtn.innerHTML = '<span>⏳</span> Consultando OSM...';
 
       const bounds = map.getBounds();
       const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
-
-      // Consulta Overpass restaurada con el método completo y estable
-      const query = `
-        [out:json][timeout:25];
-        (
-          way["highway"~"^(primary|secondary|tertiary|residential|unclassified|living_street)$"](${bbox});
-        );
-        out body;
-        >;
-        out skel qt;
-      `;
+      const query = `[out:json][timeout:25];(way["highway"~"^(primary|secondary|tertiary|residential|unclassified|living_street)$"](${bbox}););out body;>;out skel qt;`;
+      const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
       try {
-        const response = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          body: query
-        });
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        processOverpassData(data);
+        renderOSMData(data);
       } catch (err) {
-        alert("Error al conectar con OpenStreetMap. Inténtalo de nuevo.");
+        alert('Error al consultar vías en Overpass API: ' + err.message);
       } finally {
-        btn.disabled = false;
-        btn.innerText = "Escanear zona actual";
+        scanBtn.disabled = false;
+        scanBtn.innerHTML = '<span>📡</span> Escanear zona actual';
       }
     }
 
-    function processOverpassData(data) {
-      roadsLayer.clearLayers();
-      markersLayer.clearLayers();
+    // Process & Render OSM Elements
+    function renderOSMData(data) {
+      roadsLayerGroup.clearLayers();
+      junctionsLayerGroup.clearLayers();
+      junctionsData = [];
 
-      const nodeUsage = {};
       const nodesMap = {};
       const ways = [];
+      const nodeUsageCount = {};
+      const nodeWayMap = {};
 
       data.elements.forEach(el => {
         if (el.type === 'node') {
-          nodesMap[el.id] = el;
+          nodesMap[el.id] = [el.lat, el.lon];
         } else if (el.type === 'way') {
           ways.push(el);
-          el.nodes.forEach(nodeId => {
-            nodeUsage[nodeId] = (nodeUsage[nodeId] || 0) + 1;
+          el.nodes.forEach(nid => {
+            nodeUsageCount[nid] = (nodeUsageCount[nid] || 0) + 1;
+            if (!nodeWayMap[nid]) nodeWayMap[nid] = [];
+            nodeWayMap[nid].push(el);
           });
         }
       });
 
-      // 1. Dibujar todas las calles y añadir flechas grandes en sentido único
+      // 1. Draw Roads
       ways.forEach(way => {
-        const latlngs = way.nodes
-          .map(nid => nodesMap[nid] ? [nodesMap[nid].lat, nodesMap[nid].lon] : null)
-          .filter(coord => coord !== null);
+        const latlngs = way.nodes.map(nid => nodesMap[nid]).filter(Boolean);
+        if (latlngs.length < 2) return;
 
-        if (latlngs.length > 1) {
-          const tags = way.tags || {};
-          const isOneWay = (
-            tags.oneway === 'yes' || 
-            tags.oneway === '1' || 
-            tags.oneway === '-1' || 
-            tags.junction === 'roundabout'
-          );
+        const onewayTag = way.tags ? way.tags.oneway : null;
+        const junctionTag = way.tags ? way.tags.junction : null;
+        const isOneway = ['yes', '1', '-1'].includes(onewayTag) || junctionTag === 'roundabout';
+        const isReverse = onewayTag === '-1';
 
-          let lineCoords = latlngs;
-          if (tags.oneway === '-1') {
-            lineCoords = [...latlngs].reverse();
-          }
+        let drawCoordinates = [...latlngs];
+        if (isReverse) {
+          drawCoordinates.reverse();
+        }
 
-          const polyline = L.polyline(lineCoords, {
-            color: isOneWay ? '#007bff' : '#8a2be2',
+        if (isOneway) {
+          const polyline = L.polyline(drawCoordinates, {
+            color: '#007bff',
             weight: 6,
             opacity: 0.9,
             lineJoin: 'round'
-          }).addTo(roadsLayer);
+          }).addTo(roadsLayerGroup);
 
-          if (isOneWay) {
-            L.polylineDecorator(polyline, {
-              patterns: [
-                {
-                  offset: '30px',
-                  repeat: '90px',
-                  symbol: L.Symbol.arrowHead({
-                    pixelSize: 18,
-                    polygon: false,
-                    pathOptions: { stroke: true, color: '#ffffff', weight: 4, opacity: 1 }
-                  })
-                }
-              ]
-            }).addTo(roadsLayer);
-          }
+          L.polylineDecorator(polyline, {
+            patterns: [
+              {
+                offset: 25,
+                repeat: 60,
+                symbol: L.Symbol.arrowHead({
+                  pixelSize: 18,
+                  headAngle: 45,
+                  polygon: false,
+                  pathOptions: {
+                    stroke: true,
+                    weight: 4,
+                    color: '#ffffff',
+                    opacity: 1
+                  }
+                })
+              }
+            ]
+          }).addTo(roadsLayerGroup);
+        } else {
+          L.polyline(drawCoordinates, {
+            color: '#8a2be2',
+            weight: 6,
+            opacity: 0.85,
+            lineJoin: 'round'
+          }).addTo(roadsLayerGroup);
         }
       });
 
-      // 2. Localizar y dibujar todos los cruces con numeración
-      let count = 0;
-      Object.keys(nodeUsage).forEach(nodeId => {
-        if (nodeUsage[nodeId] >= 2 && nodesMap[nodeId]) {
-          count++;
-          const node = nodesMap[nodeId];
-          createJunctionMarker(node, nodeUsage[nodeId], count);
-        }
+      // 2. Identify Intersections
+      let junctionSeq = 1;
+      const junctionNodes = Object.keys(nodeUsageCount).filter(nid => nodeUsageCount[nid] >= 2);
+
+      junctionNodes.forEach(nid => {
+        const coord = nodesMap[nid];
+        if (!coord) return;
+
+        const incomingWays = nodeWayMap[nid] || [];
+        const junctionId = `junc_${nid}`;
+
+        const juncObj = {
+          id: junctionId,
+          seqNumber: junctionSeq++,
+          nodeId: nid,
+          latlng: coord,
+          ways: incomingWays
+        };
+
+        junctionsData.push(juncObj);
+        renderJunctionMarker(juncObj);
       });
 
-      document.getElementById('stats').innerText = `Cruces: ${count}`;
+      document.getElementById('junctions-count').innerText = junctionsData.length;
     }
 
-    function createJunctionMarker(node, branchesCount, indexNum) {
-      const jId = `j_${node.id}`;
-      
-      if (!junctionsData[jId]) {
-        const estimatedTurns = [];
-        for (let i = 1; i <= Math.min(branchesCount + 1, 4); i++) {
-          estimatedTurns.push(`Acceso ${i} → Giro Derecha`);
-          estimatedTurns.push(`Acceso ${i} → Recto`);
-          estimatedTurns.push(`Acceso ${i} → Giro Izquierda`);
-        }
-        junctionsData[jId] = {
-          id: jId,
-          lat: node.lat,
-          lon: node.lon,
-          maneuvers: estimatedTurns.map(m => ({ label: m, done: false }))
-        };
-      }
+    function isJunctionCompleted(juncObj) {
+      const state = savedJunctions[juncObj.id];
+      if (!state || !state.maneuvers || Object.keys(state.maneuvers).length === 0) return false;
+      return Object.values(state.maneuvers).every(val => val === true);
+    }
 
-      const isCompleted = junctionsData[jId].maneuvers.length > 0 && junctionsData[jId].maneuvers.every(m => m.done);
-      const fillColor = isCompleted ? "#16a34a" : "#ff5722";
+    function renderJunctionMarker(juncObj) {
+      const completed = isJunctionCompleted(juncObj);
+      const markerClass = completed ? 'completed' : 'pending';
 
-      const customIcon = L.divIcon({
-        className: 'junction-marker-container',
-        html: `<div style="width: 26px; height: 26px; background-color: ${fillColor}; border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); margin-top: -13px; margin-left: -13px;">${indexNum}</div>`,
+      const icon = L.divIcon({
+        className: 'custom-junction-icon',
+        html: `<div id="marker-${juncObj.id}" class="junction-marker-icon ${markerClass}">${juncObj.seqNumber}</div>`,
         iconSize: [26, 26],
         iconAnchor: [13, 13]
       });
 
-      const marker = L.marker([node.lat, node.lon], { icon: customIcon });
-
-      marker.on('click', () => openJunctionSheet(jId, marker, indexNum));
-      markersLayer.addLayer(marker);
+      const marker = L.marker(juncObj.latlng, { icon }).addTo(junctionsLayerGroup);
+      marker.on('click', () => openBottomSheet(juncObj));
     }
 
-    function openJunctionSheet(jId, markerRef, indexNum) {
-      const junction = junctionsData[jId];
-      document.getElementById('sheetTitle').innerText = `Cruce #${indexNum}`;
-      document.getElementById('sheetSubtitle').innerText = `Coordenadas: ${junction.lat.toFixed(4)}, ${junction.lon.toFixed(4)}`;
-      
-      const listContainer = document.getElementById('maneuversList');
-      listContainer.innerHTML = '';
+    function updateMarkerAppearance(juncObj) {
+      const el = document.getElementById(`marker-${juncObj.id}`);
+      if (!el) return;
+      const completed = isJunctionCompleted(juncObj);
+      el.className = `junction-marker-icon ${completed ? 'completed' : 'pending'}`;
+    }
 
-      junction.maneuvers.forEach((maneuver, index) => {
-        const item = document.createElement('div');
-        item.className = 'maneuver-item';
-        item.innerHTML = `
-          <input type="checkbox" id="m_${index}" ${maneuver.done ? 'checked' : ''}>
-          <label class="maneuver-label" for="m_${index}">${maneuver.label}</label>
-        `;
+    // Bottom Sheet Management
+    function openBottomSheet(juncObj) {
+      const sheet = document.getElementById('bottom-sheet');
+      const titleText = document.getElementById('sheet-title-text');
+      const statusBadge = document.getElementById('sheet-status-badge');
+      const maneuversContainer = document.getElementById('sheet-maneuvers');
 
-        item.querySelector('input').addEventListener('change', (e) => {
-          junction.maneuvers[index].done = e.target.checked;
-          localStorage.setItem('saved_junctions', JSON.stringify(junctionsData));
-          
-          const allDone = junction.maneuvers.every(m => m.done);
-          const newColor = allDone ? "#16a34a" : "#ff5722";
+      titleText.innerText = `Cruce #${juncObj.seqNumber}`;
+      const completed = isJunctionCompleted(juncObj);
+      statusBadge.innerText = completed ? 'Listo' : 'Pendiente';
+      statusBadge.style.background = completed ? '#16a34a' : '#ff5722';
 
-          markerRef.setIcon(L.divIcon({
-            className: 'junction-marker-container',
-            html: `<div style="width: 26px; height: 26px; background-color: ${newColor}; border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); margin-top: -13px; margin-left: -13px;">${indexNum}</div>`,
-            iconSize: [26, 26],
-            iconAnchor: [13, 13]
-          }));
+      if (!savedJunctions[juncObj.id]) {
+        savedJunctions[juncObj.id] = { maneuvers: {} };
+      }
+
+      maneuversContainer.innerHTML = '';
+
+      juncObj.ways.forEach((way, idx) => {
+        const wayName = (way.tags && (way.tags.name || way.tags.ref)) || `Acceso Vial #${idx + 1}`;
+        const legCard = document.createElement('div');
+        legCard.className = 'leg-card';
+
+        const legTitle = document.createElement('div');
+        legTitle.className = 'leg-title';
+        legTitle.innerText = `🚗 ${wayName}`;
+        legCard.appendChild(legTitle);
+
+        const optionsGroup = document.createElement('div');
+        optionsGroup.className = 'turn-options';
+
+        const maneuvers = [
+          { key: `w${way.id}_right`, label: 'Giro Derecha ↗' },
+          { key: `w${way.id}_straight`, label: 'Recto ⬆' },
+          { key: `w${way.id}_left`, label: 'Giro Izquierda ↖' }
+        ];
+
+        maneuvers.forEach(m => {
+          if (savedJunctions[juncObj.id].maneuvers[m.key] === undefined) {
+            savedJunctions[juncObj.id].maneuvers[m.key] = false;
+          }
+
+          const isChecked = savedJunctions[juncObj.id].maneuvers[m.key];
+          const label = document.createElement('label');
+          label.className = 'turn-label';
+          label.innerHTML = `
+            <span>${m.label}</span>
+            <input type="checkbox" data-junc-id="${juncObj.id}" data-m-key="${m.key}" ${isChecked ? 'checked' : ''} />
+          `;
+          optionsGroup.appendChild(label);
         });
 
-        listContainer.appendChild(item);
+        legCard.appendChild(optionsGroup);
+        maneuversContainer.appendChild(legCard);
       });
 
-      document.getElementById('sheet').classList.add('active');
+      // Handle Checkbox Changes
+      maneuversContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+          const jId = e.target.getAttribute('data-junc-id');
+          const mKey = e.target.getAttribute('data-m-key');
+          savedJunctions[jId].maneuvers[mKey] = e.target.checked;
+          saveState();
+
+          const nowComplete = isJunctionCompleted(juncObj);
+          statusBadge.innerText = nowComplete ? 'Listo' : 'Pendiente';
+          statusBadge.style.background = nowComplete ? '#16a34a' : '#ff5722';
+          updateMarkerAppearance(juncObj);
+        });
+      });
+
+      sheet.classList.add('open');
     }
 
-    function closeSheet() {
-      document.getElementById('sheet').classList.remove('active');
+    function closeBottomSheet() {
+      document.getElementById('bottom-sheet').classList.remove('open');
     }
+
+    function setupEventListeners() {
+      document.getElementById('scan-btn').addEventListener('click', scanCurrentArea);
+      document.getElementById('btn-center-gps').addEventListener('click', () => {
+        if (userCoords) map.setView(userCoords, 17);
+      });
+      document.getElementById('btn-refresh-gps').addEventListener('click', forceGPS);
+      document.getElementById('btn-close-sheet').addEventListener('click', closeBottomSheet);
+      document.getElementById('sheet-handle').addEventListener('click', closeBottomSheet);
+    }
+
+    window.addEventListener('DOMContentLoaded', initMap);
   </script>
 </body>
 </html>
