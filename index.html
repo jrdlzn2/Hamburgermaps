@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Navegador de Cruces</title>
   
-  <!-- Leaflet Map CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   
   <style>
@@ -34,7 +33,6 @@
       flex-direction: column;
     }
 
-    /* Mapa */
     #map {
       width: 100%;
       height: 100%;
@@ -106,7 +104,7 @@
       font-weight: 700;
     }
 
-    /* Marcadores personalizados en el mapa */
+    /* Marcadores en el mapa */
     .user-marker {
       width: 24px;
       height: 24px;
@@ -129,9 +127,10 @@
       border-bottom: 12px solid #007aff;
     }
 
+    /* Redondas con número */
     .crossing-badge {
-      width: 44px;
-      height: 44px;
+      width: 42px;
+      height: 42px;
       background: linear-gradient(135deg, #ff3b30, #ff9500);
       color: white;
       border-radius: 50%;
@@ -140,14 +139,110 @@
       align-items: center;
       justify-content: center;
       font-weight: 800;
-      font-size: 1.25rem;
+      font-size: 1.2rem;
       box-shadow: 0 4px 18px rgba(255, 59, 48, 0.6);
       animation: bounce 2s infinite ease-in-out;
+    }
+
+    .crossing-badge.saved {
+      background: linear-gradient(135deg, #007aff, #00c6ff);
+      box-shadow: 0 4px 14px rgba(0, 122, 255, 0.5);
+      animation: none;
     }
 
     @keyframes bounce {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-6px); }
+    }
+
+    /* Diálogo Modal de Aceptar/Rechazar Cruce */
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      transition: opacity 0.3s ease;
+    }
+
+    .modal-backdrop.hidden {
+      opacity: 0;
+      pointer-events: none;
+      display: none;
+    }
+
+    .detection-card {
+      background: #1a202c;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      padding: 24px;
+      width: 100%;
+      max-width: 340px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-badge-preview {
+      width: 54px;
+      height: 54px;
+      background: linear-gradient(135deg, #ff3b30, #ff9500);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin: 0 auto 16px;
+      border: 3px solid white;
+    }
+
+    .detection-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .detection-desc {
+      font-size: 0.88rem;
+      color: #a0aec0;
+      margin-bottom: 20px;
+      line-height: 1.4;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 14px 0;
+      border-radius: 14px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+    }
+
+    .btn-accept {
+      background: #00e676;
+      color: #0b2e13;
+    }
+
+    .btn-reject {
+      background: rgba(255, 255, 255, 0.1);
+      color: #e2e8f0;
     }
 
     /* Panel inferior (Bottom Sheet) */
@@ -157,7 +252,7 @@
       left: 0;
       right: 0;
       z-index: 1000;
-      background: rgba(18, 22, 30, 0.94);
+      background: rgba(18, 22, 30, 0.95);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border-top: 1px solid rgba(255, 255, 255, 0.12);
@@ -195,7 +290,7 @@
       font-weight: 600;
     }
 
-    /* Botones de acción con flechas */
+    /* Botones con flechas */
     .turn-options-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -213,14 +308,13 @@
       gap: 8px;
       color: #cbd5e0;
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.2s ease;
     }
 
     .turn-btn:active {
       transform: scale(0.94);
       background: #007aff;
       color: #ffffff;
-      border-color: #007aff;
     }
 
     .turn-btn svg {
@@ -243,6 +337,14 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
+    /* Estado de espera */
+    .empty-state {
+      text-align: center;
+      padding: 16px 0;
+      color: #718096;
+      font-size: 0.9rem;
+    }
   </style>
 </head>
 <body>
@@ -259,51 +361,63 @@
         </div>
         <div class="metrics-bar">
           <div class="metric">Velocidad: <span id="speed-val">0 km/h</span></div>
-          <div class="metric">Precisión: <span id="acc-val">-- m</span></div>
+          <div class="metric">Cruces guardados: <span id="saved-count">0</span></div>
         </div>
       </div>
     </div>
 
-    <!-- Contenedor del Mapa -->
+    <!-- Mapa -->
     <div id="map"></div>
 
-    <!-- Barra Inferior de Opciones -->
+    <!-- Modal de confirmación -->
+    <div class="modal-backdrop" id="confirmation-modal">
+      <div class="detection-card">
+        <div class="modal-badge-preview" id="modal-crossing-num">1</div>
+        <h2 class="detection-title">¡Cruce Detectado!</h2>
+        <p class="detection-desc" id="modal-crossing-desc">Se ha detectado una intersección a 90m en tu trayectoria.</p>
+        <div class="modal-actions">
+          <button class="btn btn-reject" onclick="rejectCrossing()">Rechazar</button>
+          <button class="btn btn-accept" onclick="acceptCrossing()">Aceptar Cruce</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel Inferior -->
     <div class="bottom-sheet">
       <div class="sheet-handle"></div>
       <div class="sheet-title-row">
-        <span class="sheet-title">Opciones en Cruce #<span id="crossing-id-label">1</span></span>
-        <span class="crossing-distance" id="crossing-distance-label">a 120m</span>
+        <span class="sheet-title" id="sheet-title-text">Cruce no seleccionado</span>
+        <span class="crossing-distance" id="crossing-distance-label">--</span>
       </div>
 
-      <div class="turn-options-grid" id="turn-options-container">
-        <!-- Generado dinámicamente -->
+      <div id="turn-options-container">
+        <div class="empty-state">Acepta el cruce detectado para ver las salidas disponibles</div>
       </div>
     </div>
   </div>
 
-  <!-- Leaflet Map JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    // Variables de estado
-    let map, userMarker, crossingMarker, routeLine;
-    let currentCoords = { lat: 40.4168, lng: -3.7038 }; // Default Madrid
-    let currentHeading = 0; // Grados
-    let nextCrossingId = 1;
+    let map, userMarker, activeCrossingMarker, routeLine;
+    let currentCoords = { lat: 40.4168, lng: -3.7038 };
+    let currentHeading = 0;
+    let crossingSequence = 1;
+    let pendingCrossing = null;
 
-    // Inicializar mapa oscuro
+    // Almacén en memoria de marcadores en el mapa
+    const savedMapMarkers = {};
+
     function initMap() {
       map = L.map('map', {
         zoomControl: false,
         attributionControl: false
       }).setView([currentCoords.lat, currentCoords.lng], 18);
 
-      // CartoDB Dark Matter tiles
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         maxZoom: 19
       }).addTo(map);
 
-      // Icono de usuario con indicador de rumbo
       const userIcon = L.divIcon({
         className: 'user-icon-container',
         html: `
@@ -317,11 +431,13 @@
 
       userMarker = L.marker([currentCoords.lat, currentCoords.lng], { icon: userIcon }).addTo(map);
 
-      // Generar el primer cruce adelante
-      updateNextCrossing();
+      // Cargar cruces previos de la sesión si existen
+      loadPersistedCrossings();
+
+      // Disparar detección inicial
+      triggerNewCrossingDetection();
     }
 
-    // Calcular destino a partir de distancia y rumbo (bearing)
     function computeOffset(lat, lng, distanceMeters, bearingDegrees) {
       const R = 6378137;
       const dLat = (distanceMeters * Math.cos(bearingDegrees * Math.PI / 180)) / R;
@@ -332,76 +448,107 @@
       };
     }
 
-    // Calcula y dibuja el siguiente cruce y sus salidas
-    function updateNextCrossing() {
-      const crossingDistance = 90; // metros adelante
-      const crossingPos = computeOffset(currentCoords.lat, currentCoords.lng, crossingDistance, currentHeading);
+    // Simula detección o consulta de un cruce próximo
+    function triggerNewCrossingDetection() {
+      const crossingPos = computeOffset(currentCoords.lat, currentCoords.lng, 90, currentHeading);
+      const crossingId = `crossing_${crossingSequence}`;
 
-      // Marcador del cruce (Redonda con número)
-      const crossingIcon = L.divIcon({
+      // Verificar si ya está en caché de sesión
+      const cached = getFromSessionCache(crossingId);
+
+      pendingCrossing = cached || {
+        id: crossingId,
+        num: crossingSequence,
+        lat: crossingPos.lat,
+        lng: crossingPos.lng,
+        distance: 90,
+        options: [
+          { label: 'Cambio sent.', street: 'Retorno', svg: '<path d="M9 7v6a5 5 0 0 0 10 0V3h-2v10a3 3 0 0 1-6 0V7h3l-4-5-4 5h3z"/>' },
+          { label: 'Giro Izq.', street: 'C/ Mayor', svg: '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>' },
+          { label: 'Recto', street: 'Av. Central', svg: '<path d="M12 4l-6 6h4v10h4V10h4z"/>' },
+          { label: 'Giro Dcha.', street: 'C/ Sol', svg: '<path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>' }
+        ]
+      };
+
+      // Marcador temporal del cruce detectado
+      const tempIcon = L.divIcon({
         className: 'crossing-icon-wrapper',
-        html: `<div class="crossing-badge">${nextCrossingId}</div>`,
-        iconSize: [44, 44],
-        iconAnchor: [22, 22]
+        html: `<div class="crossing-badge">${pendingCrossing.num}</div>`,
+        iconSize: [42, 42],
+        iconAnchor: [21, 21]
       });
 
-      if (crossingMarker) {
-        crossingMarker.setLatLng([crossingPos.lat, crossingPos.lng]);
-      } else {
-        crossingMarker = L.marker([crossingPos.lat, crossingPos.lng], { icon: crossingIcon }).addTo(map);
-      }
+      if (activeCrossingMarker) map.removeLayer(activeCrossingMarker);
+      activeCrossingMarker = L.marker([pendingCrossing.lat, pendingCrossing.lng], { icon: tempIcon }).addTo(map);
 
-      // Dibujar línea guía hasta el cruce
-      if (routeLine) {
-        routeLine.setLatLngs([[currentCoords.lat, currentCoords.lng], [crossingPos.lat, crossingPos.lng]]);
-      } else {
-        routeLine = L.polyline([[currentCoords.lat, currentCoords.lng], [crossingPos.lat, crossingPos.lng]], {
-          color: '#007aff',
-          weight: 5,
-          dashArray: '8, 8',
-          opacity: 0.8
-        }).addTo(map);
-      }
-
-      document.getElementById('crossing-id-label').innerText = nextCrossingId;
-      document.getElementById('crossing-distance-label').innerText = `a ${crossingDistance} m`;
-
-      renderTurnButtons();
+      // Mostrar modal para decidir
+      document.getElementById('modal-crossing-num').innerText = pendingCrossing.num;
+      document.getElementById('modal-crossing-desc').innerText = `Se ha detectado el Cruce #${pendingCrossing.num} a ${pendingCrossing.distance}m.`;
+      document.getElementById('confirmation-modal').classList.remove('hidden');
     }
 
-    // Renderizar botones con flechas según opciones de giro
-    function renderTurnButtons() {
-      const container = document.getElementById('turn-options-container');
-      
-      const options = [
-        {
-          id: 'u-turn',
-          label: 'Cambio sent.',
-          street: 'Retorno',
-          svg: '<path d="M9 7v6a5 5 0 0 0 10 0V3h-2v10a3 3 0 0 1-6 0V7h3l-4-5-4 5h3z"/>'
-        },
-        {
-          id: 'left',
-          label: 'Giro Izq.',
-          street: 'C/ Mayor',
-          svg: '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>'
-        },
-        {
-          id: 'straight',
-          label: 'Recto',
-          street: 'Av. Principal',
-          svg: '<path d="M12 4l-6 6h4v10h4V10h4z"/>'
-        },
-        {
-          id: 'right',
-          label: 'Giro Dcha.',
-          street: 'C/ Sol',
-          svg: '<path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>'
-        }
-      ];
+    // ACEPTAR CRUCE
+    window.acceptCrossing = function() {
+      if (!pendingCrossing) return;
 
-      container.innerHTML = options.map(opt => `
-        <button class="turn-btn" onclick="selectTurn('${opt.label}', '${opt.street}')">
+      // 1. Guardar en Session Storage para evitar llamadas redundantes
+      saveToSessionCache(pendingCrossing.id, pendingCrossing);
+
+      // 2. Fijar marcador permanente en el mapa
+      createPermanentMarker(pendingCrossing);
+
+      // 3. Quitar marcador temporal y modal
+      if (activeCrossingMarker) {
+        map.removeLayer(activeCrossingMarker);
+        activeCrossingMarker = null;
+      }
+      document.getElementById('confirmation-modal').classList.add('hidden');
+
+      // 4. Mostrar opciones en la barra inferior
+      displayTurnOptions(pendingCrossing);
+    };
+
+    // RECHAZAR CRUCE
+    window.rejectCrossing = function() {
+      if (activeCrossingMarker) {
+        map.removeLayer(activeCrossingMarker);
+        activeCrossingMarker = null;
+      }
+      pendingCrossing = null;
+      document.getElementById('confirmation-modal').classList.add('hidden');
+      document.getElementById('sheet-title-text').innerText = 'Cruce omitido';
+      document.getElementById('crossing-distance-label').innerText = '--';
+      document.getElementById('turn-options-container').innerHTML = `
+        <div class="empty-state">Continuando trayectoria...</div>
+      `;
+    };
+
+    // Crea el marcador fijo con estilo guardado
+    function createPermanentMarker(data) {
+      if (savedMapMarkers[data.id]) return;
+
+      const savedIcon = L.divIcon({
+        className: 'crossing-saved-wrapper',
+        html: `<div class="crossing-badge saved">${data.num}</div>`,
+        iconSize: [42, 42],
+        iconAnchor: [21, 21]
+      });
+
+      const marker = L.marker([data.lat, data.lng], { icon: savedIcon }).addTo(map);
+      marker.bindPopup(`<b>Cruce #${data.num}</b><br>Guardado en sesión.`);
+      savedMapMarkers[data.id] = marker;
+      updateSavedCount();
+    }
+
+    // Renderizar opciones de giro
+    function displayTurnOptions(data) {
+      document.getElementById('sheet-title-text').innerText = `Opciones en Cruce #${data.num}`;
+      document.getElementById('crossing-distance-label').innerText = `a ${data.distance}m`;
+
+      const container = document.getElementById('turn-options-container');
+      container.className = 'turn-options-grid';
+      container.innerHTML = data.options.map(opt => `
+        <button class="turn-btn" onclick="selectOption('${opt.label}', '${opt.street}')">
           <svg viewBox="0 0 24 24">${opt.svg}</svg>
           <span class="label">${opt.label}</span>
           <span class="exit-street">${opt.street}</span>
@@ -409,37 +556,59 @@
       `).join('');
     }
 
-    // Acción al pulsar una opción
-    window.selectTurn = function(action, street) {
+    window.selectOption = function(label, street) {
       if (navigator.vibrate) navigator.vibrate(40);
-      alert(`Has seleccionado: ${action} hacia "${street}". Avanzando al siguiente cruce...`);
+      alert(`Has elegido: ${label} hacia ${street}`);
       
-      // Simular avance al siguiente cruce
-      nextCrossingId++;
-      currentCoords = computeOffset(currentCoords.lat, currentCoords.lng, 90, currentHeading);
+      // Simular avance al siguiente tramo
+      crossingSequence++;
+      currentCoords = computeOffset(currentCoords.lat, currentCoords.lng, 100, currentHeading);
       userMarker.setLatLng([currentCoords.lat, currentCoords.lng]);
       map.panTo([currentCoords.lat, currentCoords.lng]);
-      updateNextCrossing();
+
+      // Detectar el siguiente cruce
+      triggerNewCrossingDetection();
     };
 
-    // Actualizar orientación visual
+    // --- Persistencia en SessionStorage ---
+    function saveToSessionCache(key, data) {
+      let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
+      stored[key] = data;
+      sessionStorage.setItem('nav_crossings', JSON.stringify(stored));
+      updateSavedCount();
+    }
+
+    function getFromSessionCache(key) {
+      let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
+      return stored[key] || null;
+    }
+
+    function loadPersistedCrossings() {
+      let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
+      Object.values(stored).forEach(data => {
+        createPermanentMarker(data);
+      });
+      updateSavedCount();
+    }
+
+    function updateSavedCount() {
+      let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
+      document.getElementById('saved-count').innerText = Object.keys(stored).length;
+    }
+
+    // Orientación y Brújula
     function updateHeadingUI(deg) {
       currentHeading = Math.round(deg);
       const cardinal = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'][Math.round(currentHeading / 45) % 8];
       document.getElementById('heading-display').innerText = `${currentHeading}° ${cardinal}`;
 
       const puck = document.getElementById('user-puck');
-      if (puck) {
-        puck.style.transform = `rotate(${currentHeading}deg)`;
-      }
+      if (puck) puck.style.transform = `rotate(${currentHeading}deg)`;
     }
 
-    // Geolocalización y Sensores del Móvil
+    // Geolocalización
     function startTracking() {
-      if (!('geolocation' in navigator)) {
-        document.getElementById('gps-status').innerText = 'GPS no compatible';
-        return;
-      }
+      if (!('geolocation' in navigator)) return;
 
       navigator.geolocation.watchPosition(
         (pos) => {
@@ -447,10 +616,7 @@
           currentCoords.lng = pos.coords.longitude;
           
           const speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
-          const accuracy = Math.round(pos.coords.accuracy || 0);
-
           document.getElementById('speed-val').innerText = `${speed} km/h`;
-          document.getElementById('acc-val').innerText = `${accuracy} m`;
           document.getElementById('gps-status').innerText = 'En vivo';
 
           if (pos.coords.heading !== null && !isNaN(pos.coords.heading)) {
@@ -458,33 +624,22 @@
           }
 
           userMarker.setLatLng([currentCoords.lat, currentCoords.lng]);
-          map.setView([currentCoords.lat, currentCoords.lng], 18);
-          updateNextCrossing();
+          map.setView([currentCoords.lat, currentCoords.lng]);
         },
-        (err) => {
-          console.warn('Error GPS:', err.message);
-          document.getElementById('gps-status').innerText = 'Modo Demo (GPS estático)';
+        () => {
+          document.getElementById('gps-status').innerText = 'Modo Demo';
         },
         { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
       );
 
-      // Brújula digital del móvil (DeviceOrientation)
       if (window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientation', (e) => {
-          let heading = null;
-          if (e.webkitCompassHeading) {
-            heading = e.webkitCompassHeading; // iOS Safari
-          } else if (e.alpha !== null) {
-            heading = 360 - e.alpha; // Android Chrome
-          }
-          if (heading !== null) {
-            updateHeadingUI(heading);
-          }
+          let heading = e.webkitCompassHeading || (e.alpha !== null ? 360 - e.alpha : null);
+          if (heading !== null) updateHeadingUI(heading);
         }, false);
       }
     }
 
-    // Inicio automático
     window.addEventListener('DOMContentLoaded', () => {
       initMap();
       startTracking();
