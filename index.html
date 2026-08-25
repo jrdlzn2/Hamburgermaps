@@ -105,16 +105,33 @@
       border-radius: 50%;
     }
 
-    /* Estilo para los números dentro de los puntos en el mapa */
-    .junction-marker-label {
-      background: transparent;
+    /* Controles flotantes de GPS (Derecha) */
+    .gps-controls {
+      position: absolute;
+      right: 15px;
+      bottom: 90px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .gps-btn {
+      width: 44px;
+      height: 44px;
+      background: white;
       border: none;
-      font-size: 10px;
-      font-weight: bold;
-      color: white;
-      text-align: center;
-      line-height: 22px;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+      border-radius: 50%;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0f172a;
+      transition: background 0.2s;
+    }
+    .gps-btn:active {
+      background: #f1f5f9;
     }
 
     /* Modal emergente inferior (Bottom Sheet) */
@@ -217,6 +234,12 @@
     </div>
   </div>
 
+  <!-- Botones flotantes de posicionamiento GPS -->
+  <div class="gps-controls">
+    <button class="gps-btn" onclick="centerOnUser()" title="Centrar en mi ubicación">🎯</button>
+    <button class="gps-btn" onclick="refreshLocation()" title="Refrescar ubicación">🔄</button>
+  </div>
+
   <div id="map"></div>
 
   <!-- Panel emergente del cruce -->
@@ -239,12 +262,92 @@
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    map.locate({ setView: true, maxZoom: 16 });
-
     let junctionsData = JSON.parse(localStorage.getItem('saved_junctions') || '{}');
     
     const roadsLayer = L.layerGroup().addTo(map);
     const markersLayer = L.layerGroup().addTo(map);
+    const userLayer = L.layerGroup().addTo(map);
+
+    let userLat = null;
+    let userLon = null;
+
+    // Inicializar geolocalización continua
+    function initGPS() {
+      if (!navigator.geolocation) {
+        alert("Tu navegador no soporta geolocalización.");
+        return;
+      }
+
+      navigator.geolocation.watchPosition(
+        (position) => {
+          userLat = position.coords.latitude;
+          userLon = position.coords.longitude;
+          updateUserMarker(userLat, userLon);
+        },
+        (error) => {
+          console.warn("Error obteniendo GPS: ", error.message);
+        },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+      );
+
+      // Centrar al arrancar por primera vez
+      navigator.geolocation.getCurrentPosition((position) => {
+        userLat = position.coords.latitude;
+        userLon = position.coords.longitude;
+        map.setView([userLat, userLon], 16);
+        updateUserMarker(userLat, userLon);
+      });
+    }
+
+    function updateUserMarker(lat, lon) {
+      userLayer.clearLayers();
+
+      // Icono personalizado para la posición actual (Punto azul con halo)
+      const userIcon = L.divIcon({
+        className: 'user-position-icon',
+        html: `<div style="
+          width: 20px;
+          height: 20px;
+          background: #3b82f6;
+          border: 3px solid white;
+          border-radius: 50%;
+          box-shadow: 0 0 10px rgba(59, 130, 246, 0.7);
+          margin-top: -10px;
+          margin-left: -10px;
+        "></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+
+      L.marker([lat, lon], { icon: userIcon, zIndexOffset: 1000 }).addTo(userLayer);
+    }
+
+    function centerOnUser() {
+      if (userLat !== null && userLon !== null) {
+        map.setView([userLat, userLon], 17, { animate: true });
+      } else {
+        alert("Buscando señal GPS... Espera un momento.");
+        initGPS();
+      }
+    }
+
+    function refreshLocation() {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          userLat = position.coords.latitude;
+          userLon = position.coords.longitude;
+          map.setView([userLat, userLon], 17, { animate: true });
+          updateUserMarker(userLat, userLon);
+        },
+        (error) => {
+          alert("No se pudo actualizar la ubicación. Comprueba el GPS de tu móvil.");
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    // Arrancar GPS al cargar
+    initGPS();
 
     document.getElementById('fetchBtn').addEventListener('click', fetchJunctionsAndRoads);
 
@@ -346,7 +449,6 @@
       const isCompleted = junctionsData[jId].maneuvers.length > 0 && junctionsData[jId].maneuvers.every(m => m.done);
       const fillColor = isCompleted ? "#16a34a" : "#ff5722";
 
-      // Creamos un marcador con icono HTML personalizado para mostrar el número dentro del círculo
       const customIcon = L.divIcon({
         className: 'junction-marker-container',
         html: `<div style="
@@ -398,7 +500,6 @@
           const allDone = junction.maneuvers.every(m => m.done);
           const newColor = allDone ? "#16a34a" : "#ff5722";
 
-          // Actualizar el color del icono en tiempo real al marcar los checkboxes
           markerRef.setIcon(L.divIcon({
             className: 'junction-marker-container',
             html: `<div style="
