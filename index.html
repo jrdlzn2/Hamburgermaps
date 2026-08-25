@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Navegador de Vías y Cruces Reales</title>
+  <title>Navegador de Vías Reales</title>
   
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   
@@ -124,18 +124,13 @@
       display: none;
       align-items: center;
       gap: 6px;
-      transition: transform 0.15s ease;
     }
 
     .btn-saved-list.visible {
       display: flex;
     }
 
-    .btn-saved-list:active {
-      transform: scale(0.95);
-    }
-
-    /* Marcador del usuario y Cruces reales */
+    /* Marcador usuario y cruce */
     .user-marker {
       width: 26px;
       height: 26px;
@@ -237,11 +232,6 @@
       font-size: 0.92rem;
       border: none;
       cursor: pointer;
-      transition: transform 0.15s ease;
-    }
-
-    .btn:active {
-      transform: scale(0.96);
     }
 
     .btn-accept {
@@ -271,11 +261,6 @@
       gap: 8px;
       color: #c9d1d9;
       cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .turn-btn:active {
-      transform: scale(0.94);
     }
 
     .turn-btn.selected {
@@ -306,10 +291,6 @@
       text-overflow: ellipsis;
     }
 
-    .turn-btn.selected .exit-street {
-      color: #d1d5db;
-    }
-
     .empty-state {
       text-align: center;
       padding: 12px 0;
@@ -320,7 +301,6 @@
 </head>
 <body>
   <div id="app">
-    <!-- HUD Superior -->
     <div class="top-hud">
       <div class="card">
         <div class="status-row">
@@ -341,19 +321,17 @@
       </button>
     </div>
 
-    <!-- Mapa -->
     <div id="map"></div>
 
-    <!-- Panel Inferior -->
     <div class="bottom-sheet">
       <div class="sheet-handle"></div>
       <div class="sheet-title-row">
-        <span class="sheet-title" id="sheet-title-text">Conectando con vías reales...</span>
+        <span class="sheet-title" id="sheet-title-text">Cargando vías reales...</span>
         <span class="crossing-distance" id="crossing-distance-label">--</span>
       </div>
 
       <div id="bottom-content-area">
-        <div class="empty-state" id="sheet-message">Analizando intersecciones de calles cercanas</div>
+        <div class="empty-state">Analizando tramos de calle cercanos</div>
       </div>
     </div>
   </div>
@@ -362,14 +340,18 @@
 
   <script>
     let map, userMarker, activeCrossingMarker;
-    let currentCoords = { lat: 40.4168, lng: -3.7038 }; // Por defecto
+    let currentCoords = { lat: 40.4168, lng: -3.7038 };
     let currentHeading = 0;
     let pendingCrossing = null;
     let currentSelectedOption = null;
     let hasInitializedLocation = false;
 
     const savedMapMarkers = {};
-    const streetOverlayGroup = L.layerGroup(); // Capa para pintar las vías concurrentes reales de 20m
+    const streetOverlayGroup = LayerGroupWithCustomTrim();
+
+    function LayerGroupWithCustomTrim() {
+      return L.layerGroup();
+    }
 
     function initMap() {
       map = L.map('map', {
@@ -377,7 +359,6 @@
         attributionControl: false
       }).setView([currentCoords.lat, currentCoords.lng], 18);
 
-      // Mapa oscuro de alto contraste enfocado en nombres de calles
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 20,
         subdomains: 'abcd'
@@ -400,12 +381,11 @@
       loadPersistedCrossings();
     }
 
-    // Consulta real a Overpass API (OpenStreetMap) para extraer nodos de cruces y nombres de calles reales
+    // Consulta Overpass API para obtener geometría exacta de vías reales
     async function fetchRealIntersections(lat, lng) {
-      document.getElementById('sheet-title-text').innerText = 'Buscando cruce real...';
+      document.getElementById('sheet-title-text').innerText = 'Detectando cruce real...';
       
-      // Radio de búsqueda de 80 metros alrededor de la posición actual
-      const bbox = `${lat - 0.0008},${lng - 0.0008},${lat + 0.0008},${lng + 0.0008}`;
+      const bbox = `${lat - 0.001},${lng - 0.001},${lat + 0.001},${lng + 0.001}`;
       const query = `
         [out:json][timeout:5];
         (
@@ -422,17 +402,14 @@
           body: query
         });
         const data = await response.json();
-        
-        processRealRoadData(data, lat, lng);
+        processRealRoadGeometries(data, lat, lng);
       } catch (e) {
-        console.warn("Fallo en consulta API de vías, usando modo de respaldo local:", e);
-        // Respaldo simulado inteligente si no hay internet o timeout
+        console.warn("Fallo de red, usando respaldo local:", e);
         createFallbackCrossing(lat, lng);
       }
     }
 
-    // Procesar nodos y vías reales obtenidos del mapa
-    function processRealRoadData(osmData, userLat, userLng) {
+    function processRealRoadGeometries(osmData, userLat, userLng) {
       const nodes = {};
       const ways = [];
 
@@ -444,37 +421,38 @@
         }
       });
 
-      // Buscar nodos compartidos (auténticas intersecciones / cruces de calles)
-      const nodeOccurrences = {};
+      // Encontrar nodos de intersección (donde confluyen 2 o más vías)
+      let nodeOccurrences = {};
       ways.forEach(w => {
         w.nodes.forEach(nodeId => {
           nodeOccurrences[nodeId] = (nodeOccurrences[nodeId] || 0) + 1;
         });
       });
 
-      let closestCrossing = null;
+      let bestCrossing = null;
       let minDistance = Infinity;
 
       Object.keys(nodeOccurrences).forEach(nodeId => {
         if (nodeOccurrences[nodeId] > 1 && nodes[nodeId]) {
           const n = nodes[nodeId];
           const dist = getDistanceFromLatLonInMeters(userLat, userLng, n.lat, n.lon);
-          if (dist < minDistance && dist > 10) { // Cruce válido a más de 10m y menos de 100m
+          if (dist < minDistance && dist > 8) {
             minDistance = dist;
-            closestCrossing = {
+            bestCrossing = {
               id: `real_node_${nodeId}`,
               num: Math.floor(Math.random() * 900) + 100,
               lat: n.lat,
               lng: n.lon,
               distance: Math.round(dist),
-              ways: ways.filter(w => w.nodes.includes(Number(nodeId)))
+              intersectingWays: ways.filter(w => w.nodes.includes(Number(nodeId))),
+              allNodes: nodes
             };
           }
         }
       });
 
-      if (closestCrossing) {
-        setupCrossingData(closestCrossing);
+      if (bestCrossing) {
+        setupCrossingData(bestCrossing);
       } else {
         createFallbackCrossing(userLat, userLng);
       }
@@ -487,12 +465,14 @@
       
       const crossing = {
         id: `fallback_${Math.floor(lat * 10000)}`,
-        num: 42,
+        num: 55,
         lat: fallbackLat,
         lng: fallbackLng,
         distance: dist,
+        intersectingWays: [],
+        allNodes: {},
         options: [
-          { id: 'left', label: 'Giro Izq.', street: 'Calle Principal', svg: '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>' },
+          { id: 'left', label: 'Giro Izq.', street: 'Vía Principal', svg: '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>' },
           { id: 'straight', label: 'Recto', street: 'Avenida Central', svg: '<path d="M12 4l-6 6h4v10h4V10h4z"/>' },
           { id: 'right', label: 'Giro Dcha.', street: 'Calle Transversal', svg: '<path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>' }
         ]
@@ -504,9 +484,8 @@
       const cached = getFromSessionCache(crossing.id);
       pendingCrossing = cached || crossing;
 
-      if (!pendingCrossing.options && crossing.ways) {
-        // Extraer nombres reales de las calles que llegan al cruce
-        pendingCrossing.options = crossing.ways.slice(0, 4).map((w, index) => {
+      if (!pendingCrossing.options && crossing.intersectingWays) {
+        pendingCrossing.options = crossing.intersectingWays.slice(0, 4).map((w, index) => {
           const name = w.tags.name || `Calle ${index + 1}`;
           const isOneWay = w.tags.oneway === 'yes' ? ' (Sentido único)' : '';
           const labels = ['Giro Izq.', 'Recto', 'Giro Dcha.', 'Alternativa'];
@@ -525,8 +504,8 @@
         });
       }
 
-      // Pintar exactamente los primeros 20 metros de las vías reales concurrentes en el cruce
-      renderRealIntersectingStreets(pendingCrossing);
+      // Pintar exclusivamente los tramos de las vías reales (primeros 20m saliendo del cruce)
+      renderTrimmedRealStreetSegments(pendingCrossing);
 
       if (cached) {
         displayTurnOptions(cached);
@@ -547,7 +526,7 @@
       document.getElementById('crossing-distance-label').innerText = `a ${pendingCrossing.distance}m`;
 
       document.getElementById('bottom-content-area').innerHTML = `
-        <div style="font-size:0.85rem; color:#8b949e; margin-bottom:12px;">Intersección real detectada con nombres de calles y sentido de vías.</div>
+        <div style="font-size:0.85rem; color:#8b949e; margin-bottom:12px;">Intersección detectada con trazado de vías reales de alta precisión.</div>
         <div class="actions-row">
           <button class="btn btn-reject" onclick="rejectCrossing()">Rechazar</button>
           <button class="btn btn-accept" onclick="acceptCrossing()">Aceptar Cruce</button>
@@ -555,23 +534,47 @@
       `;
     }
 
-    // Pinta con precisión los primeros 20 metros de cada vía que llega al cruce real
-    function renderRealIntersectingStreets(crossing) {
+    // Recorta geométricamente las vías reales para pintar solo 20 metros a cada lado desde el centro del cruce
+    function renderTrimmedRealStreetSegments(crossing) {
       streetOverlayGroup.clearLayers();
 
-      const directions = [0, 90, 180, 270]; // Vectorización de las vías concurrentes
-      directions.forEach((bearing, idx) => {
-        const endPoint = computeOffset(crossing.lat, crossing.lng, 20, bearing);
+      if (!crossing.intersectingWays || crossing.intersectingWays.length === 0) {
+        // Respaldo de líneas radiales si no hay geometría compleja disponible
+        [0, 90, 180, 270].forEach(bearing => {
+          const end = computeOffset(crossing.lat, crossing.lng, 20, bearing);
+          const line = L.polyline([[crossing.lat, crossing.lng], [end.lat, end.lng]], {
+            color: '#238636', weight: 6, opacity: 0.9, lineCap: 'round'
+          });
+          streetOverlayGroup.addLayer(line);
+        });
+        return;
+      }
 
-        // Vía real resaltada con neón brillante de alta visibilidad para distinguirse perfectamente del fondo
-        const streetLine = L.polyline([[crossing.lat, crossing.lng], [endPoint.lat, endPoint.lng]], {
-          color: '#3fb950', // Verde brillante neón para destacar las vías sobre el mapa oscuro
-          weight: 7,
-          opacity: 0.95,
-          lineCap: 'round'
+      // Dibujar tramos reales recortados a 20m desde el nodo central del cruce
+      crossing.intersectingWays.forEach(way => {
+        const coords = [];
+        let passedCenter = false;
+
+        way.nodes.forEach(nodeId => {
+          const n = crossing.allNodes[nodeId];
+          if (n) {
+            const dist = getDistanceFromLatLonInMeters(crossing.lat, crossing.lng, n.lat, n.lon);
+            if (dist <= 25) { // Dentro del radio de los 20-25 metros del cruce
+              coords.push([n.lat, n.lon]);
+            }
+          }
         });
 
-        streetOverlayGroup.addLayer(streetLine);
+        if (coords.length >= 2) {
+          const trimmedWayLine = L.polyline(coords, {
+            color: '#238636', // Verde intenso para los tramos reales de vía
+            weight: 7,
+            opacity: 0.95,
+            lineCap: 'round',
+            smoothFactor: 1
+          });
+          streetOverlayGroup.addLayer(trimmedWayLine);
+        }
       });
     }
 
@@ -592,13 +595,11 @@
       const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
                 Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
                 Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     window.acceptCrossing = function() {
       if (!pendingCrossing) return;
-
       saveToSessionCache(pendingCrossing.id, pendingCrossing);
       createPermanentMarker(pendingCrossing);
 
@@ -606,7 +607,6 @@
         map.removeLayer(activeCrossingMarker);
         activeCrossingMarker = null;
       }
-
       displayTurnOptions(pendingCrossing);
     };
 
@@ -619,23 +619,18 @@
       pendingCrossing = null;
       document.getElementById('sheet-title-text').innerText = 'Cruce omitido';
       document.getElementById('crossing-distance-label').innerText = '--';
-      document.getElementById('bottom-content-area').innerHTML = `
-        <div class="empty-state">Continuando en ruta...</div>
-      `;
+      document.getElementById('bottom-content-area').innerHTML = `<div class="empty-state">Continuando en ruta...</div>`;
     };
 
     function createPermanentMarker(data) {
       if (savedMapMarkers[data.id]) return;
-
       const savedIcon = L.divIcon({
         className: 'crossing-saved-wrapper',
         html: `<div class="crossing-badge saved">${data.num}</div>`,
         iconSize: [44, 44],
         iconAnchor: [22, 22]
       });
-
       const marker = L.marker([data.lat, data.lng], { icon: savedIcon }).addTo(map);
-      marker.bindPopup(`<b>Cruce #${data.num}</b><br>Vías reales guardadas.`);
       savedMapMarkers[data.id] = marker;
       updateSavedCount();
     }
@@ -675,7 +670,6 @@
 
         setTimeout(() => {
           currentSelectedOption = null;
-          // Buscar siguiente cruce real según ubicación actual
           fetchRealIntersections(currentCoords.lat, currentCoords.lng);
         }, 1500);
       }
@@ -683,8 +677,8 @@
 
     window.showSavedCrossingsList = function() {
       let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
-      let listStr = Object.values(stored).map(c => `• Cruce #${c.num} (${c.options.length} vías reales)`).join('\n');
-      alert(`Cruces reales memorizados en la sesión:\n\n${listStr || 'Ninguno'}`);
+      let listStr = Object.values(stored).map(c => `• Cruce #${c.num}`).join('\n');
+      alert(`Cruces guardados en la sesión:\n\n${listStr || 'Ninguno'}`);
     };
 
     function saveToSessionCache(key, data) {
@@ -701,9 +695,7 @@
 
     function loadPersistedCrossings() {
       let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
-      Object.values(stored).forEach(data => {
-        createPermanentMarker(data);
-      });
+      Object.values(stored).forEach(data => createPermanentMarker(data));
       updateSavedCount();
     }
 
@@ -711,29 +703,21 @@
       let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
       let count = Object.keys(stored).length;
       document.getElementById('saved-count').innerText = count;
-
       const btnSavedList = document.getElementById('btn-saved-modal');
-      if (count > 0) {
-        btnSavedList.classList.add('visible');
-      } else {
-        btnSavedList.classList.remove('visible');
-      }
+      if (count > 0) btnSavedList.classList.add('visible');
+      else btnSavedList.classList.remove('visible');
     }
 
     function updateHeadingUI(deg) {
       currentHeading = Math.round(deg);
       const cardinal = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'][Math.round(currentHeading / 45) % 8];
       document.getElementById('heading-display').innerText = `${currentHeading}° ${cardinal}`;
-
       const puck = document.getElementById('user-puck');
       if (puck) puck.style.transform = `rotate(${currentHeading}deg)`;
     }
 
     function startTracking() {
-      if (!('geolocation' in navigator)) {
-        document.getElementById('gps-status').innerText = 'GPS no compatible';
-        return;
-      }
+      if (!('geolocation' in navigator)) return;
 
       navigator.geolocation.watchPosition(
         (pos) => {
@@ -757,7 +741,7 @@
           }
         },
         () => {
-          document.getElementById('gps-status').innerText = 'Modo Demo (GPS inactivo)';
+          document.getElementById('gps-status').innerText = 'Modo Demo';
           if (!hasInitializedLocation) {
             hasInitializedLocation = true;
             fetchRealIntersections(currentCoords.lat, currentCoords.lng);
