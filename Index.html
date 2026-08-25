@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Gestor de Cruces y Maniobras</title>
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    #map { flex: 1; width: 100%; z-index: 1; }
+    
+    /* Panel de control superior */
+    .top-bar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn:disabled { background: #ccc; }
+    .status-badge { font-size: 12px; color: #444; font-weight: 500; }
+
+    /* Modal / Bottom Sheet para gestionar el cruce */
+    .sheet {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      z-index: 1000;
+      border-radius: 16px 16px 0 0;
+      padding: 18px;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+      transform: translateY(105%);
+      transition: transform 0.3s ease-out;
+      max-height: 50vh;
+      overflow-y: auto;
+    }
+    .sheet.active { transform: translateY(0); }
+    .sheet h3 { font-size: 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
+    
+    /* Lista de giros */
+    .maneuver-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+      gap: 12px;
+    }
+    .maneuver-item input[type="checkbox"] { width: 20px; height: 20px; accent-color: #28a745; }
+    .maneuver-label { font-size: 14px; color: #333; }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <button id="fetchBtn" class="btn">Escanear cruces en vista</button>
+    <span id="stats" class="status-badge">Cruces: 0</span>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Panel flotante del cruce seleccionado -->
+  <div id="sheet" class="sheet">
+    <h3>
+      <span id="sheetTitle">Cruce #0</span>
+      <button class="close-btn" onclick="closeSheet()">✕</button>
+    </h3>
+    <p style="font-size: 12px; color: #666; margin-bottom: 12px;" id="sheetSubtitle">Selecciona los giros completados:</p>
+    <div id="maneuversList"></div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Inicializar mapa centrado
+    const map = L.map('map').setView([40.4168, -3.7038], 16); // Madrid por defecto
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // Intentar geolocalizar al usuario
+    map.locate({ setView: true, maxZoom: 16 });
+
+    let junctionsData = JSON.parse(localStorage.getItem('saved_junctions') || '{}');
+    let markersLayer = L.layerGroup().addTo(map);
+
+    document.getElementById('fetchBtn').addEventListener('click', fetchJunctions);
+
+    async function fetchJunctions() {
+      const btn = document.getElementById('fetchBtn');
+      btn.disabled = true;
+      btn.innerText = "Cargando...";
+
+      const bounds = map.getBounds();
+      const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+
+      // Consulta a Overpass API para vías transitables
+      const query = `
+        [out:json][timeout:25];
+        (
+          way["highway"~"^(primary|secondary|tertiary|residential|unclassified|living_street)$"](${bbox});
+        );
+        out body;
+        >;
+        out skel qt;
+      `;
+
+      try {
+        const response = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          body: query
+        });
+        const data = await response.json();
+        processOverpassData(data);
+      } catch (err) {
+        alert("Error al obtener datos de OpenStreetMap. Reduce el zoom o reintenta.");
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Escanear cruces en vista";
+      }
+    }
+
+    function processOverpassData(data) {
+      markersLayer.clearLayers();
+      const nodeUsage = {};
+      const nodesMap = {};
+      const ways = [];
+
+      data.elements.forEach(el => {
+        if (el.type === 'node') {
+          nodesMap[el.id] = el;
+        } else if (el.type === 'way') {
+          ways.push(el);
+          el.nodes.forEach(nodeId => {
+            nodeUsage[nodeId] = (nodeUsage[nodeId] || 0) + 1;
+          });
+        }
+      });
+
+      // Filtrar nodos que cruzan 2 o más calles (intersecciones)
+      let count = 0;
+      Object.keys(nodeUsage).forEach(nodeId => {
+        if (nodeUsage[nodeId] >= 2 && nodesMap[nodeId]) {
+          count++;
+          const node = nodesMap[nodeId];
+          createJunctionMarker(node, nodeUsage[nodeId]);
+        }
+      });
+
+      document.getElementById('stats').innerText = `Cruces: ${count}`;
+    }
+
+    function createJunctionMarker(node, branchesCount) {
+      const jId = `j_${node.id}`;
+      if (!junctionsData[jId]) {
+        // Estimación estándar de giros según las ramas de la intersección
+        const estimatedTurns = [];
+        for (let i = 1; i <= branchesCount; i++) {
+          estimatedTurns.push(`Entrada vía ${i} → Giro Derecha`);
+          estimatedTurns.push(`Entrada vía ${i} → Recto`);
+          estimatedTurns.push(`Entrada vía ${i} → Giro Izquierda`);
+        }
+        junctionsData[jId] = {
+          id: jId,
+          lat: node.lat,
+          lon: node.lon,
+          maneuvers: estimatedTurns.map(m => ({ label: m, done: false }))
+        };
+      }
+
+      const isCompleted = junctionsData[jId].maneuvers.every(m => m.done);
+
+      const marker = L.circleMarker([node.lat, node.lon], {
+        radius: 8,
+        fillColor: isCompleted ? "#28a745" : "#ff5722",
+        color: "#fff",
+        weight: 2,
+        fillOpacity: 0.9
+      });
+
+      marker.on('click', () => openJunctionSheet(jId, marker));
+      markersLayer.addLayer(marker);
+    }
+
+    function openJunctionSheet(jId, markerRef) {
+      const junction = junctionsData[jId];
+      document.getElementById('sheetTitle').innerText = `Cruce (${junction.lat.toFixed(4)}, ${junction.lon.toFixed(4)})`;
+      
+      const listContainer = document.getElementById('maneuversList');
+      listContainer.innerHTML = '';
+
+      junction.maneuvers.forEach((maneuver, index) => {
+        const item = document.createElement('div');
+        item.className = 'maneuver-item';
+        item.innerHTML = `
+          <input type="checkbox" id="m_${index}" ${maneuver.done ? 'checked' : ''}>
+          <label class="maneuver-label" for="m_${index}">${maneuver.label}</label>
+        `;
+
+        item.querySelector('input').addEventListener('change', (e) => {
+          junction.maneuvers[index].done = e.target.checked;
+          localStorage.setItem('saved_junctions', JSON.stringify(junctionsData));
+          
+          const allDone = junction.maneuvers.every(m => m.done);
+          markerRef.setStyle({ fillColor: allDone ? "#28a745" : "#ff5722" });
+        });
+
+        listContainer.appendChild(item);
+      });
+
+      document.getElementById('sheet').classList.add('active');
+    }
+
+    function closeSheet() {
+      document.getElementById('sheet').classList.remove('active');
+    }
+  </script>
+</body>
+</html>
