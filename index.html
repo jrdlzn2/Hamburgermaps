@@ -62,7 +62,6 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: background 0.2s;
     }
     .btn:active {
       transform: scale(0.98);
@@ -164,9 +163,6 @@
       gap: 12px;
       border-radius: 6px;
     }
-    .maneuver-item:active {
-      background: #f8fafc;
-    }
     .maneuver-item input[type="checkbox"] {
       width: 22px;
       height: 22px;
@@ -192,11 +188,11 @@
     <div class="legend">
       <div class="legend-item">
         <div class="color-box" style="background: #007bff;"></div>
-        <span>1 Sentido</span>
+        <span>1 Sentido (Azul)</span>
       </div>
       <div class="legend-item">
         <div class="color-box" style="background: #8a2be2;"></div>
-        <span>2 Sentidos</span>
+        <span>2 Sentidos (Morado)</span>
       </div>
       <div class="legend-item">
         <div class="dot-box" style="background: #ff5722;"></div>
@@ -224,7 +220,6 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // Inicialización del mapa en posición por defecto
     const map = L.map('map', { zoomControl: false }).setView([40.4168, -3.7038], 16);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -232,12 +227,10 @@
       attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    // Intentar ubicar automáticamente por GPS móvil
     map.locate({ setView: true, maxZoom: 16 });
 
     let junctionsData = JSON.parse(localStorage.getItem('saved_junctions') || '{}');
     
-    // Capas separadas
     const roadsLayer = L.layerGroup().addTo(map);
     const markersLayer = L.layerGroup().addTo(map);
 
@@ -251,15 +244,13 @@
       const bounds = map.getBounds();
       const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
 
-      // Vías transitables con sus nodos
+      // Usamos out geom; para obtener las geometrías y etiquetas directamente en la respuesta
       const query = `
         [out:json][timeout:25];
         (
           way["highway"~"^(primary|secondary|tertiary|residential|unclassified|living_street)$"](${bbox});
         );
-        out body;
-        >;
-        out skel qt;
+        out geom;
       `;
 
       try {
@@ -270,7 +261,7 @@
         const data = await response.json();
         processOverpassData(data);
       } catch (err) {
-        alert("Error al obtener datos de OpenStreetMap. Reduce el área visible e inténtalo de nuevo.");
+        alert("Error al conectar con OpenStreetMap. Reduce el área visible e inténtalo de nuevo.");
       } finally {
         btn.disabled = false;
         btn.innerText = "Escanear zona actual";
@@ -283,49 +274,47 @@
 
       const nodeUsage = {};
       const nodesMap = {};
-      const ways = [];
 
-      data.elements.forEach(el => {
-        if (el.type === 'node') {
-          nodesMap[el.id] = el;
-        } else if (el.type === 'way') {
-          ways.push(el);
-          el.nodes.forEach(nodeId => {
-            nodeUsage[nodeId] = (nodeUsage[nodeId] || 0) + 1;
-          });
-        }
+      data.elements.forEach(way => {
+        if (!way.geometry) return;
+
+        // Extraer coordenadas de la geometría de la vía
+        const latlngs = way.geometry.map(pt => [pt.lat, pt.lon]);
+
+        // Registrar uso de nodos para calcular intersecciones (cruces)
+        way.geometry.forEach(pt => {
+          // Usamos una clave de lat/lon redondeada para contar cruces exactos de nodos compartidos
+          const nKey = `${pt.lat.toFixed(5)},${pt.lon.toFixed(5)}`;
+          if (!nodesMap[nKey]) {
+            nodesMap[nKey] = { lat: pt.lat, lon: pt.lon, count: 0, id: pt.id || Math.random() };
+          }
+          nodesMap[nKey].count++;
+        });
+
+        // Comprobar si es de un solo sentido
+        const tags = way.tags || {};
+        const isOneWay = (
+          tags.oneway === 'yes' || 
+          tags.oneway === '1' || 
+          tags.oneway === '-1' || 
+          tags.junction === 'roundabout'
+        );
+
+        // Dibujar la calle: Azul si es 1 sentido, Morado si es 2 sentidos
+        L.polyline(latlngs, {
+          color: isOneWay ? '#007bff' : '#8a2be2',
+          weight: 5,
+          opacity: 0.85,
+          lineJoin: 'round'
+        }).addTo(roadsLayer);
       });
 
-      // 1. Dibujar calles coloreadas por sentido de circulación
-      ways.forEach(way => {
-        const latlngs = way.nodes
-          .map(nid => nodesMap[nid] ? [nodesMap[nid].lat, nodesMap[nid].lon] : null)
-          .filter(coord => coord !== null);
-
-        if (latlngs.length > 1) {
-          const isOneWay = way.tags && (
-            way.tags.oneway === 'yes' || 
-            way.tags.oneway === '1' || 
-            way.tags.oneway === '-1' || 
-            way.tags.junction === 'roundabout'
-          );
-
-          L.polyline(latlngs, {
-            color: isOneWay ? '#007bff' : '#8a2be2',
-            weight: 4,
-            opacity: 0.75,
-            lineJoin: 'round'
-          }).addTo(roadsLayer);
-        }
-      });
-
-      // 2. Extraer intersecciones (nodos compartidos por 2 o más vías)
+      // Filtrar y pintar los cruces (nodos por donde pasan 2 o más calles)
       let count = 0;
-      Object.keys(nodeUsage).forEach(nodeId => {
-        if (nodeUsage[nodeId] >= 2 && nodesMap[nodeId]) {
+      Object.values(nodesMap).forEach(node => {
+        if (node.count >= 2) {
           count++;
-          const node = nodesMap[nodeId];
-          createJunctionMarker(node, nodeUsage[nodeId]);
+          createJunctionMarker(node, node.count);
         }
       });
 
@@ -333,15 +322,14 @@
     }
 
     function createJunctionMarker(node, branchesCount) {
-      const jId = `j_${node.id}`;
+      const jId = `j_${node.lat.toFixed(5)}_${node.lon.toFixed(5)}`;
       
-      // Si el cruce no está guardado previamente en LocalStorage, inicializar giros
       if (!junctionsData[jId]) {
         const estimatedTurns = [];
-        for (let i = 1; i <= branchesCount; i++) {
-          estimatedTurns.push(`Entrada vía ${i} → Derecha`);
-          estimatedTurns.push(`Entrada vía ${i} → Recto`);
-          estimatedTurns.push(`Entrada vía ${i} → Izquierda`);
+        for (let i = 1; i <= Math.min(branchesCount + 1, 4); i++) {
+          estimatedTurns.push(`Acceso ${i} → Giro Derecha`);
+          estimatedTurns.push(`Acceso ${i} → Recto`);
+          estimatedTurns.push(`Acceso ${i} → Giro Izquierda`);
         }
         junctionsData[jId] = {
           id: jId,
