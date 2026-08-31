@@ -1,767 +1,284 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Navegador de Vías Reales</title>
-  
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de Rutas a Google Maps por Dibujo</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f4f7f6;
+        }
 
-    body, html {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background-color: #0d1117;
-      color: #ffffff;
-    }
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
 
-    #app {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
+        header h1 {
+            margin: 0;
+            font-size: 1.4rem;
+        }
 
-    #map {
-      width: 100%;
-      height: 100%;
-      z-index: 1;
-      background-color: #0d1117;
-    }
+        header p {
+            margin: 5px 0 0 0;
+            font-size: 0.9rem;
+            color: #bdc3c7;
+        }
 
-    /* HUD Superior */
-    .top-hud {
-      position: absolute;
-      top: env(safe-area-inset-top, 16px);
-      left: 16px;
-      right: 16px;
-      z-index: 1000;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      pointer-events: none;
-    }
+        #map-container {
+            flex: 1;
+            position: relative;
+        }
 
-    .card {
-      background: rgba(15, 20, 28, 0.94);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 18px;
-      padding: 12px 16px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-      pointer-events: auto;
-      flex: 1;
-      margin-right: 10px;
-    }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
 
-    .status-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+        .control-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
 
-    .status-indicator {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: #00ff66;
-    }
+        button {
+            padding: 10px 18px;
+            font-size: 0.95rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
 
-    .pulse-dot {
-      width: 10px;
-      height: 10px;
-      background-color: #00ff66;
-      border-radius: 50%;
-      box-shadow: 0 0 10px #00ff66;
-      animation: pulse 1.8s infinite;
-    }
+        #btn-draw {
+            background-color: #3498db;
+            color: white;
+        }
 
-    @keyframes pulse {
-      0% { transform: scale(0.9); opacity: 0.8; }
-      50% { transform: scale(1.3); opacity: 1; }
-      100% { transform: scale(0.9); opacity: 0.8; }
-    }
+        #btn-draw.active {
+            background-color: #e67e22;
+        }
 
-    .metrics-bar {
-      display: flex;
-      gap: 16px;
-      margin-top: 6px;
-      font-size: 0.8rem;
-      color: #8b949e;
-    }
+        #btn-clear {
+            background-color: #e74c3c;
+            color: white;
+        }
 
-    .metric span {
-      color: #ffffff;
-      font-weight: 700;
-    }
+        #btn-google {
+            background-color: #2ecc71;
+            color: white;
+            display: none;
+            text-decoration: none;
+            line-height: normal;
+            padding: 10px 18px;
+            border-radius: 5px;
+            font-size: 0.95rem;
+            font-weight: bold;
+        }
 
-    .btn-saved-list {
-      background: rgba(15, 20, 28, 0.94);
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      color: #ffffff;
-      padding: 10px 14px;
-      border-radius: 14px;
-      font-size: 0.8rem;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
-      pointer-events: auto;
-      display: none;
-      align-items: center;
-      gap: 6px;
-    }
+        #btn-google:hover {
+            background-color: #27ae60;
+        }
 
-    .btn-saved-list.visible {
-      display: flex;
-    }
+        button:hover {
+            opacity: 0.9;
+        }
 
-    /* Marcador usuario y cruce */
-    .user-marker {
-      width: 26px;
-      height: 26px;
-      background: #2f81f7;
-      border: 3px solid #ffffff;
-      border-radius: 50%;
-      box-shadow: 0 0 16px rgba(47, 129, 247, 0.9);
-      position: relative;
-    }
-
-    .user-heading-pointer {
-      position: absolute;
-      top: -13px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 0;
-      height: 0;
-      border-left: 6px solid transparent;
-      border-right: 6px solid transparent;
-      border-bottom: 13px solid #2f81f7;
-    }
-
-    .crossing-badge {
-      width: 44px;
-      height: 44px;
-      background: linear-gradient(135deg, #f85149, #d29922);
-      color: white;
-      border-radius: 50%;
-      border: 3px solid white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 1.2rem;
-      box-shadow: 0 4px 18px rgba(248, 81, 73, 0.7);
-    }
-
-    .crossing-badge.saved {
-      background: linear-gradient(135deg, #2f81f7, #3fb950);
-      box-shadow: 0 4px 14px rgba(47, 129, 247, 0.6);
-    }
-
-    /* Panel inferior */
-    .bottom-sheet {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 1000;
-      background: rgba(13, 17, 23, 0.96);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-top: 1px solid rgba(255, 255, 255, 0.2);
-      border-top-left-radius: 28px;
-      border-top-right-radius: 28px;
-      padding: 16px 18px calc(16px + env(safe-area-inset-bottom, 12px));
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      box-shadow: 0 -10px 30px rgba(0,0,0,0.7);
-    }
-
-    .sheet-handle {
-      width: 40px;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.3);
-      border-radius: 2px;
-      margin: 0 auto;
-    }
-
-    .sheet-title-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-    }
-
-    .sheet-title {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: #f0f6fc;
-    }
-
-    .crossing-distance {
-      font-size: 0.85rem;
-      color: #d29922;
-      font-weight: 600;
-    }
-
-    .actions-row {
-      display: flex;
-      gap: 10px;
-    }
-
-    .btn {
-      flex: 1;
-      padding: 12px 0;
-      border-radius: 14px;
-      font-weight: 700;
-      font-size: 0.92rem;
-      border: none;
-      cursor: pointer;
-    }
-
-    .btn-accept {
-      background: #238636;
-      color: #ffffff;
-    }
-
-    .btn-reject {
-      background: rgba(255, 255, 255, 0.1);
-      color: #c9d1d9;
-    }
-
-    .turn-options-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-    }
-
-    .turn-btn {
-      background: #21262d;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 16px;
-      padding: 12px 6px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      color: #c9d1d9;
-      cursor: pointer;
-    }
-
-    .turn-btn.selected {
-      background: #238636 !important;
-      border-color: #56d364 !important;
-      color: #ffffff !important;
-      box-shadow: 0 0 12px rgba(35, 134, 54, 0.6);
-    }
-
-    .turn-btn svg {
-      width: 26px;
-      height: 26px;
-      fill: currentColor;
-    }
-
-    .turn-btn .label {
-      font-size: 0.72rem;
-      font-weight: 600;
-      text-align: center;
-    }
-
-    .turn-btn .exit-street {
-      font-size: 0.62rem;
-      color: #8b949e;
-      max-width: 100%;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 12px 0;
-      color: #8b949e;
-      font-size: 0.88rem;
-    }
-  </style>
+        .instruction {
+            font-size: 0.9rem;
+            color: #555;
+            font-weight: 600;
+        }
+    </style>
 </head>
 <body>
-  <div id="app">
-    <div class="top-hud">
-      <div class="card">
-        <div class="status-row">
-          <div class="status-indicator">
-            <div class="pulse-dot"></div>
-            <span id="gps-status">Buscando ubicación...</span>
-          </div>
-          <span id="heading-display" style="font-weight: 700; font-size: 0.85rem; color: #58a6ff;">0° N</span>
+
+    <header>
+        <h1>Trazador de Rutas Global para Google Maps</h1>
+        <p>Dibuja a mano alzada sobre cualquier carretera del mundo</p>
+    </header>
+
+    <div id="map-container">
+        <div id="map"></div>
+        <div class="control-panel">
+            <span id="status" class="instruction">Modo: Navegación libre</span>
+            <button id="btn-draw">Activar Dibujo</button>
+            <button id="btn-clear">Borrar Trazado</button>
+            <a id="btn-google" href="#" target="_blank">Abrir en Google Maps</a>
         </div>
-        <div class="metrics-bar">
-          <div class="metric">Velocidad: <span id="speed-val">0 km/h</span></div>
-          <div class="metric">Aceptados: <span id="saved-count">0</span></div>
-        </div>
-      </div>
-      
-      <button class="btn-saved-list" id="btn-saved-modal" onclick="showSavedCrossingsList()">
-        📍 Guardados
-      </button>
     </div>
 
-    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <div class="bottom-sheet">
-      <div class="sheet-handle"></div>
-      <div class="sheet-title-row">
-        <span class="sheet-title" id="sheet-title-text">Cargando vías reales...</span>
-        <span class="crossing-distance" id="crossing-distance-label">--</span>
-      </div>
+    <script>
+        // 1. Inicializar el mapa centrado en una ubicación por defecto (ej. Madrid, España)
+        const map = L.map('map').setView([40.4168, -3.7038], 13);
 
-      <div id="bottom-content-area">
-        <div class="empty-state">Analizando tramos de calle cercanos</div>
-      </div>
-    </div>
-  </div>
+        // Capa de mapa base (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        let isDrawingEnabled = false;
+        let isDrawing = false;
+        let freehandPoints = [];
+        let drawnLineLayer = null;
+        let optimizedRouteLayer = null;
 
-  <script>
-    let map, userMarker, activeCrossingMarker;
-    let currentCoords = { lat: 40.4168, lng: -3.7038 };
-    let currentHeading = 0;
-    let pendingCrossing = null;
-    let currentSelectedOption = null;
-    let hasInitializedLocation = false;
+        const btnDraw = document.getElementById('btn-draw');
+        const btnClear = document.getElementById('btn-clear');
+        const btnGoogle = document.getElementById('btn-google');
+        const statusText = document.getElementById('status');
 
-    const savedMapMarkers = {};
-    const streetOverlayGroup = LayerGroupWithCustomTrim();
-
-    function LayerGroupWithCustomTrim() {
-      return L.layerGroup();
-    }
-
-    function initMap() {
-      map = L.map('map', {
-        zoomControl: false,
-        attributionControl: false
-      }).setView([currentCoords.lat, currentCoords.lng], 18);
-
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 20,
-        subdomains: 'abcd'
-      }).addTo(map);
-
-      streetOverlayGroup.addTo(map);
-
-      const userIcon = L.divIcon({
-        className: 'user-icon-container',
-        html: `
-          <div id="user-puck" class="user-marker">
-            <div class="user-heading-pointer"></div>
-          </div>
-        `,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13]
-      });
-
-      userMarker = L.marker([currentCoords.lat, currentCoords.lng], { icon: userIcon }).addTo(map);
-      loadPersistedCrossings();
-    }
-
-    // Consulta Overpass API para obtener geometría exacta de vías reales
-    async function fetchRealIntersections(lat, lng) {
-      document.getElementById('sheet-title-text').innerText = 'Detectando cruce real...';
-      
-      const bbox = `${lat - 0.001},${lng - 0.001},${lat + 0.001},${lng + 0.001}`;
-      const query = `
-        [out:json][timeout:5];
-        (
-          way["highway"](${bbox});
-        );
-        out body;
-        >;
-        out skel qt;
-      `;
-
-      try {
-        const response = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          body: query
-        });
-        const data = await response.json();
-        processRealRoadGeometries(data, lat, lng);
-      } catch (e) {
-        console.warn("Fallo de red, usando respaldo local:", e);
-        createFallbackCrossing(lat, lng);
-      }
-    }
-
-    function processRealRoadGeometries(osmData, userLat, userLng) {
-      const nodes = {};
-      const ways = [];
-
-      osmData.elements.forEach(el => {
-        if (el.type === 'node') {
-          nodes[el.id] = { lat: el.lat, lon: el.lon };
-        } else if (el.type === 'way' && el.tags && el.tags.highway) {
-          ways.push(el);
-        }
-      });
-
-      // Encontrar nodos de intersección (donde confluyen 2 o más vías)
-      let nodeOccurrences = {};
-      ways.forEach(w => {
-        w.nodes.forEach(nodeId => {
-          nodeOccurrences[nodeId] = (nodeOccurrences[nodeId] || 0) + 1;
-        });
-      });
-
-      let bestCrossing = null;
-      let minDistance = Infinity;
-
-      Object.keys(nodeOccurrences).forEach(nodeId => {
-        if (nodeOccurrences[nodeId] > 1 && nodes[nodeId]) {
-          const n = nodes[nodeId];
-          const dist = getDistanceFromLatLonInMeters(userLat, userLng, n.lat, n.lon);
-          if (dist < minDistance && dist > 8) {
-            minDistance = dist;
-            bestCrossing = {
-              id: `real_node_${nodeId}`,
-              num: Math.floor(Math.random() * 900) + 100,
-              lat: n.lat,
-              lng: n.lon,
-              distance: Math.round(dist),
-              intersectingWays: ways.filter(w => w.nodes.includes(Number(nodeId))),
-              allNodes: nodes
-            };
-          }
-        }
-      });
-
-      if (bestCrossing) {
-        setupCrossingData(bestCrossing);
-      } else {
-        createFallbackCrossing(userLat, userLng);
-      }
-    }
-
-    function createFallbackCrossing(lat, lng) {
-      const fallbackLat = lat + 0.0006;
-      const fallbackLng = lng + 0.0006;
-      const dist = Math.round(getDistanceFromLatLonInMeters(lat, lng, fallbackLat, fallbackLng));
-      
-      const crossing = {
-        id: `fallback_${Math.floor(lat * 10000)}`,
-        num: 55,
-        lat: fallbackLat,
-        lng: fallbackLng,
-        distance: dist,
-        intersectingWays: [],
-        allNodes: {},
-        options: [
-          { id: 'left', label: 'Giro Izq.', street: 'Vía Principal', svg: '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>' },
-          { id: 'straight', label: 'Recto', street: 'Avenida Central', svg: '<path d="M12 4l-6 6h4v10h4V10h4z"/>' },
-          { id: 'right', label: 'Giro Dcha.', street: 'Calle Transversal', svg: '<path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>' }
-        ]
-      };
-      setupCrossingData(crossing);
-    }
-
-    function setupCrossingData(crossing) {
-      const cached = getFromSessionCache(crossing.id);
-      pendingCrossing = cached || crossing;
-
-      if (!pendingCrossing.options && crossing.intersectingWays) {
-        pendingCrossing.options = crossing.intersectingWays.slice(0, 4).map((w, index) => {
-          const name = w.tags.name || `Calle ${index + 1}`;
-          const isOneWay = w.tags.oneway === 'yes' ? ' (Sentido único)' : '';
-          const labels = ['Giro Izq.', 'Recto', 'Giro Dcha.', 'Alternativa'];
-          const svgs = [
-            '<path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>',
-            '<path d="M12 4l-6 6h4v10h4V10h4z"/>',
-            '<path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/>',
-            '<path d="M9 7v6a5 5 0 0 0 10 0V3h-2v10a3 3 0 0 1-6 0V7h3l-4-5-4 5h3z"/>'
-          ];
-          return {
-            id: `opt_${index}`,
-            label: labels[index % labels.length],
-            street: name + isOneWay,
-            svg: svgs[index % svgs.length]
-          };
-        });
-      }
-
-      // Pintar exclusivamente los tramos de las vías reales (primeros 20m saliendo del cruce)
-      renderTrimmedRealStreetSegments(pendingCrossing);
-
-      if (cached) {
-        displayTurnOptions(cached);
-        return;
-      }
-
-      const tempIcon = L.divIcon({
-        className: 'crossing-icon-wrapper',
-        html: `<div class="crossing-badge">${pendingCrossing.num}</div>`,
-        iconSize: [44, 44],
-        iconAnchor: [22, 22]
-      });
-
-      if (activeCrossingMarker) map.removeLayer(activeCrossingMarker);
-      activeCrossingMarker = L.marker([pendingCrossing.lat, pendingCrossing.lng], { icon: tempIcon }).addTo(map);
-
-      document.getElementById('sheet-title-text').innerText = `¿Aceptar Cruce Real #${pendingCrossing.num}?`;
-      document.getElementById('crossing-distance-label').innerText = `a ${pendingCrossing.distance}m`;
-
-      document.getElementById('bottom-content-area').innerHTML = `
-        <div style="font-size:0.85rem; color:#8b949e; margin-bottom:12px;">Intersección detectada con trazado de vías reales de alta precisión.</div>
-        <div class="actions-row">
-          <button class="btn btn-reject" onclick="rejectCrossing()">Rechazar</button>
-          <button class="btn btn-accept" onclick="acceptCrossing()">Aceptar Cruce</button>
-        </div>
-      `;
-    }
-
-    // Recorta geométricamente las vías reales para pintar solo 20 metros a cada lado desde el centro del cruce
-    function renderTrimmedRealStreetSegments(crossing) {
-      streetOverlayGroup.clearLayers();
-
-      if (!crossing.intersectingWays || crossing.intersectingWays.length === 0) {
-        // Respaldo de líneas radiales si no hay geometría compleja disponible
-        [0, 90, 180, 270].forEach(bearing => {
-          const end = computeOffset(crossing.lat, crossing.lng, 20, bearing);
-          const line = L.polyline([[crossing.lat, crossing.lng], [end.lat, end.lng]], {
-            color: '#238636', weight: 6, opacity: 0.9, lineCap: 'round'
-          });
-          streetOverlayGroup.addLayer(line);
-        });
-        return;
-      }
-
-      // Dibujar tramos reales recortados a 20m desde el nodo central del cruce
-      crossing.intersectingWays.forEach(way => {
-        const coords = [];
-        let passedCenter = false;
-
-        way.nodes.forEach(nodeId => {
-          const n = crossing.allNodes[nodeId];
-          if (n) {
-            const dist = getDistanceFromLatLonInMeters(crossing.lat, crossing.lng, n.lat, n.lon);
-            if (dist <= 25) { // Dentro del radio de los 20-25 metros del cruce
-              coords.push([n.lat, n.lon]);
+        // 2. Control de activación del modo dibujo
+        btnDraw.addEventListener('click', () => {
+            isDrawingEnabled = !isDrawingEnabled;
+            if (isDrawingEnabled) {
+                btnDraw.textContent = 'Desactivar Dibujo';
+                btnDraw.classList.add('active');
+                statusText.textContent = 'Haz clic y arrastra sobre las carreteras';
+                map.dragging.disable(); // Desactivar movimiento del mapa para dibujar con comodidad
+            } else {
+                btnDraw.textContent = 'Activar Dibujo';
+                btnDraw.classList.remove('active');
+                statusText.textContent = 'Modo: Navegación libre';
+                map.dragging.enable();
             }
-          }
         });
 
-        if (coords.length >= 2) {
-          const trimmedWayLine = L.polyline(coords, {
-            color: '#238636', // Verde intenso para los tramos reales de vía
-            weight: 7,
-            opacity: 0.95,
-            lineCap: 'round',
-            smoothFactor: 1
-          });
-          streetOverlayGroup.addLayer(trimmedWayLine);
+        // 3. Eventos del mouse para dibujo a mano alzada
+        map.on('mousedown', (e) => {
+            if (!isDrawingEnabled) return;
+            isDrawing = true;
+            freehandPoints = [e.latlng];
+            
+            if (drawnLineLayer) map.removeLayer(drawnLineLayer);
+            if (optimizedRouteLayer) map.removeLayer(optimizedRouteLayer);
+            btnGoogle.style.display = 'none';
+
+            drawnLineLayer = L.polyline(freehandPoints, { color: '#e74c3c', weight: 4 }).addTo(map);
+        });
+
+        map.on('mousemove', (e) => {
+            if (!isDrawing || !isDrawingEnabled) return;
+            freehandPoints.push(e.latlng);
+            drawnLineLayer.setLatLngs(freehandPoints);
+        });
+
+        map.on('mouseup', async () => {
+            if (!isDrawing || !isDrawingEnabled) return;
+            isDrawing = false;
+            
+            if (freehandPoints.length > 2) {
+                statusText.textContent = 'Procesando ruta sobre carreteras...';
+                await processRouteToRoads(freehandPoints);
+            }
+        });
+
+        // 4. Limpiar mapa
+        btnClear.addEventListener('click', () => {
+            if (drawnLineLayer) map.removeLayer(drawnLineLayer);
+            if (optimizedRouteLayer) map.removeLayer(optimizedRouteLayer);
+            freehandPoints = [];
+            btnGoogle.style.display = 'none';
+            statusText.textContent = isDrawingEnabled ? 'Haz clic y arrastra sobre las carreteras' : 'Modo: Navegación libre';
+        });
+
+        // 5. Procesar los puntos dibujados y ajustarlos a las carreteras usando OSRM
+        async function processRouteToRoads(points) {
+            try {
+                // Reducir la cantidad de puntos para no saturar la API (tomar muestras cada ciertos puntos)
+                const simplified = simplifyPoints(points, Math.max(1, Math.floor(points.length / 25)));
+                
+                // Construir la URL para OSRM (formato: lon,lat;lon,lat;...)
+                const coordinatesString = simplified.map(p => `${p.lng},${p.lat}`).join(';');
+                const url = `https://router.project-osrm.org/route/v1/driving/${coordinatesString}?overview=full&geometries=geojson`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                    const route = data.routes[0];
+                    const routeCoords = route.geometry.coordinates.map(c => [c[1], c[0]]); // Invertir a LatLng
+
+                    // Dibujar la ruta ajustada a la carretera en color azul
+                    optimizedRouteLayer = L.polyline(routeCoords, { color: '#2980b9', weight: 6, opacity: 0.8 }).addTo(map);
+
+                    // Generar enlace optimizado para Google Maps
+                    generateGoogleMapsLink(routeCoords);
+
+                    statusText.textContent = '¡Ruta generada con éxito!';
+                    btnGoogle.style.display = 'inline-block';
+                } else {
+                    statusText.textContent = 'No se encontró carretera cercana. Inténtalo de nuevo.';
+                }
+            } catch (error) {
+                console.error(error);
+                statusText.textContent = 'Error al conectar con el servicio de rutas.';
+            }
         }
-      });
-    }
 
-    function computeOffset(lat, lng, distanceMeters, bearingDegrees) {
-      const R = 6378137;
-      const dLat = (distanceMeters * Math.cos(bearingDegrees * Math.PI / 180)) / R;
-      const dLng = (distanceMeters * Math.sin(bearingDegrees * Math.PI / 180)) / (R * Math.cos(lat * Math.PI / 180));
-      return {
-        lat: lat + (dLat * 180 / Math.PI),
-        lng: lng + (dLng * 180 / Math.PI)
-      };
-    }
-
-    function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
-      const R = 6371000;
-      const dLat = (lat2 - lat1) * (Math.PI / 180);
-      const dLon = (lon2 - lon1) * (Math.PI / 180);
-      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
-    window.acceptCrossing = function() {
-      if (!pendingCrossing) return;
-      saveToSessionCache(pendingCrossing.id, pendingCrossing);
-      createPermanentMarker(pendingCrossing);
-
-      if (activeCrossingMarker) {
-        map.removeLayer(activeCrossingMarker);
-        activeCrossingMarker = null;
-      }
-      displayTurnOptions(pendingCrossing);
-    };
-
-    window.rejectCrossing = function() {
-      if (activeCrossingMarker) {
-        map.removeLayer(activeCrossingMarker);
-        activeCrossingMarker = null;
-      }
-      streetOverlayGroup.clearLayers();
-      pendingCrossing = null;
-      document.getElementById('sheet-title-text').innerText = 'Cruce omitido';
-      document.getElementById('crossing-distance-label').innerText = '--';
-      document.getElementById('bottom-content-area').innerHTML = `<div class="empty-state">Continuando en ruta...</div>`;
-    };
-
-    function createPermanentMarker(data) {
-      if (savedMapMarkers[data.id]) return;
-      const savedIcon = L.divIcon({
-        className: 'crossing-saved-wrapper',
-        html: `<div class="crossing-badge saved">${data.num}</div>`,
-        iconSize: [44, 44],
-        iconAnchor: [22, 22]
-      });
-      const marker = L.marker([data.lat, data.lng], { icon: savedIcon }).addTo(map);
-      savedMapMarkers[data.id] = marker;
-      updateSavedCount();
-    }
-
-    function displayTurnOptions(data) {
-      document.getElementById('sheet-title-text').innerText = `Vías en Cruce #${data.num}`;
-      document.getElementById('crossing-distance-label').innerText = `a ${data.distance}m`;
-
-      const container = document.getElementById('bottom-content-area');
-      container.innerHTML = `
-        <div class="turn-options-grid">
-          ${data.options.map(opt => `
-            <button class="turn-btn ${currentSelectedOption === opt.id ? 'selected' : ''}" 
-                    onclick="handleOptionClick('${data.id}', '${opt.id}', '${opt.label}', '${opt.street}')">
-              <svg viewBox="0 0 24 24">${opt.svg}</svg>
-              <span class="label">${opt.label}</span>
-              <span class="exit-street">${opt.street}</span>
-            </button>
-          `).join('')}
-        </div>
-      `;
-    }
-
-    window.handleOptionClick = function(crossingId, optId, label, street) {
-      if (navigator.vibrate) navigator.vibrate(40);
-
-      if (currentSelectedOption === optId) {
-        if (confirm(`¿Estás seguro de que quieres desmarcar esta indicación (${label} - ${street})?`)) {
-          currentSelectedOption = null;
-          let cached = getFromSessionCache(crossingId);
-          if (cached) displayTurnOptions(cached);
+        // Función auxiliar para reducir puntos y evitar exceder límites de URLs
+        function simplifyPoints(arr, step) {
+            let result = [];
+            for (let i = 0; i < arr.length; i += step) {
+                result.push(arr[i]);
+            }
+            // Asegurar que se incluya el último punto
+            if (result[result.length - 1] !== arr[arr.length - 1]) {
+                result.push(arr[arr.length - 1]);
+            }
+            return result;
         }
-      } else {
-        currentSelectedOption = optId;
-        let cached = getFromSessionCache(crossingId);
-        if (cached) displayTurnOptions(cached);
 
-        setTimeout(() => {
-          currentSelectedOption = null;
-          fetchRealIntersections(currentCoords.lat, currentCoords.lng);
-        }, 1500);
-      }
-    };
+        // 6. Generador de enlace para Google Maps con múltiples puntos intermedios (waypoints)
+        function generateGoogleMapsLink(latlngs) {
+            const origin = `${latlngs[0][0]},${latlngs[0][1]}`;
+            const destination = `${latlngs[latlngs.length - 1][0]},${latlngs[latlngs.length - 1][1]}`;
+            
+            // Google Maps permite una cantidad limitada de waypoints en URL directas (tomamos muestras intermedias)
+            const maxWaypoints = 8; 
+            let waypointsArray = [];
+            
+            if (latlngs.length > 2) {
+                const step = Math.floor(latlngs.length / (maxWaypoints + 1));
+                for (let i = step; i < latlngs.length - 1; i += step) {
+                    waypointsArray.push(`${latlngs[i][0]},${latlngs[i][1]}`);
+                }
+            }
 
-    window.showSavedCrossingsList = function() {
-      let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
-      let listStr = Object.values(stored).map(c => `• Cruce #${c.num}`).join('\n');
-      alert(`Cruces guardados en la sesión:\n\n${listStr || 'Ninguno'}`);
-    };
+            let googleUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+            if (waypointsArray.length > 0) {
+                googleUrl += `&waypoints=${waypointsArray.join('|')}`;
+            }
+            googleUrl += `&travelmode=driving`;
 
-    function saveToSessionCache(key, data) {
-      let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
-      stored[key] = data;
-      sessionStorage.setItem('nav_crossings', JSON.stringify(stored));
-      updateSavedCount();
-    }
-
-    function getFromSessionCache(key) {
-      let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
-      return stored[key] || null;
-    }
-
-    function loadPersistedCrossings() {
-      let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
-      Object.values(stored).forEach(data => createPermanentMarker(data));
-      updateSavedCount();
-    }
-
-    function updateSavedCount() {
-      let stored = JSON.parse(sessionStorage.getItem('nav_crossings') || '{}');
-      let count = Object.keys(stored).length;
-      document.getElementById('saved-count').innerText = count;
-      const btnSavedList = document.getElementById('btn-saved-modal');
-      if (count > 0) btnSavedList.classList.add('visible');
-      else btnSavedList.classList.remove('visible');
-    }
-
-    function updateHeadingUI(deg) {
-      currentHeading = Math.round(deg);
-      const cardinal = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'][Math.round(currentHeading / 45) % 8];
-      document.getElementById('heading-display').innerText = `${currentHeading}° ${cardinal}`;
-      const puck = document.getElementById('user-puck');
-      if (puck) puck.style.transform = `rotate(${currentHeading}deg)`;
-    }
-
-    function startTracking() {
-      if (!('geolocation' in navigator)) return;
-
-      navigator.geolocation.watchPosition(
-        (pos) => {
-          currentCoords.lat = pos.coords.latitude;
-          currentCoords.lng = pos.coords.longitude;
-          
-          const speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
-          document.getElementById('speed-val').innerText = `${speed} km/h`;
-          document.getElementById('gps-status').innerText = 'En vivo';
-
-          if (pos.coords.heading !== null && !isNaN(pos.coords.heading)) {
-            updateHeadingUI(pos.coords.heading);
-          }
-
-          userMarker.setLatLng([currentCoords.lat, currentCoords.lng]);
-
-          if (!hasInitializedLocation) {
-            hasInitializedLocation = true;
-            map.setView([currentCoords.lat, currentCoords.lng], 18);
-            fetchRealIntersections(currentCoords.lat, currentCoords.lng);
-          }
-        },
-        () => {
-          document.getElementById('gps-status').innerText = 'Modo Demo';
-          if (!hasInitializedLocation) {
-            hasInitializedLocation = true;
-            fetchRealIntersections(currentCoords.lat, currentCoords.lng);
-          }
-        },
-        { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
-      );
-
-      if (window.DeviceOrientationEvent) {
-        window.addEventListener('deviceorientation', (e) => {
-          let heading = e.webkitCompassHeading || (e.alpha !== null ? 360 - e.alpha : null);
-          if (heading !== null) updateHeadingUI(heading);
-        }, false);
-      }
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      initMap();
-      startTracking();
-    });
-  </script>
+            btnGoogle.href = googleUrl;
+        }
+    </script>
 </body>
 </html>
